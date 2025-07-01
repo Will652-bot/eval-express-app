@@ -1,91 +1,83 @@
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@12.5.0?target=deno";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import Stripe from 'https://esm.sh/stripe@12.1.0'
 
-// Initialisation Stripe
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-  apiVersion: "2022-11-15",
-});
+const stripe = Stripe(Deno.env.get('STRIPE_SECRET_KEY'), {
+  apiVersion: '2022-11-15',
+})
 
-// Serveur webhook
-serve(async (req: Request) => {
-  console.log("[✅ Webhook Stripe] Reçu un appel", req.method);
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+)
 
-  const rawBody = await req.text();
-  const signature = req.headers.get("stripe-signature");
-  const signingSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
-
-  let event;
+serve(async (req) => {
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature!, signingSecret);
-    console.log("✅ Signature Stripe vérifiée");
-  } catch (err) {
-    console.error("❌ Signature Stripe invalide :", err.message);
-    return new Response("Invalid signature", { status: 400 });
-  }
+    const event = await req.json()
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+    console.log('✅ [Webhook] Event received:', event.type)
 
-  // 🎯 Cible : Event Stripe de fin de paiement
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object as any;
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object
+      const email = session.customer_email
+      const customerId = session.customer
+      const subscriptionId = session.subscription
 
-    const user_id = session.client_reference_id;
-    const customer_email = session.customer_email;
-    const now = new Date();
-    const subscription_expires_at = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
+      console.log(`📩 Email: ${email}`)
+      console.log(`🔁 Sub ID: ${subscriptionId}`)
 
-    console.log("🔎 ID utilisateur cible :", user_id);
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single()
 
-    // 🔄 Mise à jour de la table users
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({
-        current_plan: "pro",
-        pro_subscription_active: true,
-        subscription_start_date: new Date().toISOString(),
-        subscription_expires_at: subscription_expires_at,
-        stripe_customer_id: session.customer,
-        stripe_subscription_id: session.subscription
+      if (userError || !user) {
+        console.error('❌ Utilisateur non trouvé:', userError)
+        return new Response('User not found', { status: 404 })
+      }
+
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 30)
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          stripe_customer_id: customerId,
+          stripe_subscription_id: subscriptionId,
+          subscription_expires_at: expiresAt.toISOString(),
+          pro_subscription_active: true
+        })
+        .eq('id', user.id)
+
+      if (updateError) {
+        console.error('❌ Échec update user:', updateError)
+        return new Response('Update failed', { status: 500 })
+      }
+
+      const { error: insertError } = await supabase.from('payments').insert({
+        user_id: user.id,
+        email,
+        stripe_customer_id: customerId,
+        stripe_subscription_id: subscriptionId,
+        amount: session.amount_total / 100,
+        currency: session.currency,
+        status: 'paid',
+        paid_at: new Date().toISOString()
       })
-      .eq("id", user_id);
 
-    if (updateError) {
-      console.error("❌ Échec de la mise à jour de l'utilisateur :", updateError.message);
-    } else {
-      console.log("✅ Utilisateur mis à jour avec succès !");
+      if (insertError) {
+        console.error('❌ Erreur insert payment:', insertError)
+        return new Response('Insert failed', { status: 500 })
+      }
+
+      console.log('✅ Paiement enregistré pour', email)
+      return new Response('Webhook traité avec succès', { status: 200 })
     }
 
-    // ➕ Insertion dans la table payments
-    const { error: insertError } = await supabase
-      .from("payments")
-      .insert([
-        {
-          user_id,
-          email: customer_email,
-          method: "stripe",
-          plan_name: "pro",
-          status: session.payment_status || "paid",
-          stripe_checkout_session_id: session.id,
-          stripe_payment_intent_id: session.payment_intent || "",
-          stripe_customer_id: session.customer,
-          stripe_subscription_id: session.subscription,
-          amount: session.amount_total ? session.amount_total / 100 : 4.99,
-          currency: session.currency || "brl",
-          plan_expiration_date: subscription_expires_at,
-        }
-      ]);
-
-    if (insertError) {
-      console.error("❌ Échec de l'insertion du paiement :", insertError.message);
-    } else {
-      console.log("✅ Paiement enregistré dans Supabase");
-    }
-  } else {
-    console.log("ℹ️ Événement Stripe ignoré :", event.type);
+    return new Response('Événement ignoré', { status: 200 })
+  } catch (err) {
+    console.error('❌ Erreur webhook Stripe:', err.message)
+    return new Response(`Erreur webhook: ${err.message}`, { status: 400 })
   }
-
-  return new Response("Webhook processed", { status: 200 });
-});
+})
