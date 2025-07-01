@@ -124,7 +124,7 @@ Deno.serve(async (req: Request) => {
     console.log('💳 [create-checkout-link] Creating Stripe checkout session...');
 
     // Get site URL for redirect
-    const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://evalexpress-app.netlify.app";
+    const baseUrl = Deno.env.get("APP_BASE_URL") || "https://evalexpress-app.netlify.app";
     const successUrl = `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${baseUrl}/payment-cancel`;
 
