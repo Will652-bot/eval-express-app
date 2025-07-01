@@ -3,27 +3,34 @@ import Stripe from "https://esm.sh/stripe@12.5.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 // Initialisation Stripe
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
+const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
+const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
+
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: "2022-11-15",
 });
 
-// Serveur webhook
+// Serveur Webhook
 serve(async (req: Request) => {
+  // ✅ Log immédiat
+  console.log("[✅ Webhook Stripe] Reçu un appel", req.method);
+
+  const rawBody = await req.text(); // ⚠️ Obligatoire pour vérifier la signature
   const signature = req.headers.get("stripe-signature");
-  const signingSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 
   let event;
   try {
-    const body = await req.text();
-    event = stripe.webhooks.constructEvent(body, signature!, signingSecret);
+    event = stripe.webhooks.constructEvent(rawBody, signature!, STRIPE_WEBHOOK_SECRET);
   } catch (err) {
-    console.error("⚠️ Webhook signature verification failed:", err.message);
+    console.error("❌ Erreur de signature Stripe :", err.message);
     return new Response("Webhook signature invalid", { status: 400 });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+  // Initialisation Supabase avec service_role
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") || "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
+  );
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as any;
@@ -31,11 +38,20 @@ serve(async (req: Request) => {
     const user_id = session.client_reference_id;
     const customer_email = session.customer_email;
     const now = new Date();
-    const subscription_expires_at = new Date(now.setMonth(now.getMonth() + 1)).toISOString();
+    const subscription_expires_at = new Date(now.setDate(now.getDate() + 30)).toISOString();
 
-    console.log("✅ Webhook reçu pour user:", user_id);
+    console.log("🧾 Données session reçues:", {
+      user_id,
+      email: customer_email,
+      expires_at: subscription_expires_at,
+    });
 
-    // 🔄 Update table users
+    if (!user_id) {
+      console.error("❌ Aucune valeur user_id (client_reference_id) reçue.");
+      return new Response("Client reference ID manquant", { status: 400 });
+    }
+
+    // 🔄 Mise à jour table users
     const { error: updateError } = await supabase
       .from("users")
       .update({
@@ -43,18 +59,18 @@ serve(async (req: Request) => {
         pro_subscription_active: true,
         subscription_start_date: new Date().toISOString(),
         subscription_expires_at: subscription_expires_at,
-        stripe_customer_id: session.customer,
-        stripe_subscription_id: session.subscription
+        stripe_customer_id: session.customer ?? "",
+        stripe_subscription_id: session.subscription ?? "",
       })
       .eq("id", user_id);
 
     if (updateError) {
-      console.error("❌ Échec update user:", updateError);
+      console.error("❌ Erreur update user:", updateError);
     } else {
-      console.log("✅ Utilisateur mis à jour avec succès");
+      console.log("✅ Utilisateur mis à jour dans la table users");
     }
 
-    // ➕ Insert table payments
+    // ➕ Insertion dans table payments
     const { error: insertError } = await supabase
       .from("payments")
       .insert([
@@ -65,21 +81,21 @@ serve(async (req: Request) => {
           plan_name: "pro",
           status: session.payment_status || "paid",
           stripe_checkout_session_id: session.id,
-          stripe_payment_intent_id: session.payment_intent || "", // parfois null
-          stripe_customer_id: session.customer,
-          stripe_subscription_id: session.subscription,
+          stripe_payment_intent_id: session.payment_intent ?? "",
+          stripe_customer_id: session.customer ?? "",
+          stripe_subscription_id: session.subscription ?? "",
           amount: session.amount_total ? session.amount_total / 100 : 4.99,
           currency: session.currency || "brl",
           plan_expiration_date: subscription_expires_at,
-        }
+        },
       ]);
 
     if (insertError) {
-      console.error("❌ Échec insert payment:", insertError);
+      console.error("❌ Erreur insert payment:", insertError);
     } else {
-      console.log("✅ Paiement enregistré dans Supabase");
+      console.log("✅ Paiement inséré dans Supabase");
     }
   }
 
-  return new Response("Webhook processed", { status: 200 });
+  return new Response("✅ Webhook traité avec succès", { status: 200 });
 });
