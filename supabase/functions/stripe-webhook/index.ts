@@ -1,83 +1,95 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import Stripe from 'https://esm.sh/stripe@12.1.0'
+// supabase/functions/stripe-webhook/index.ts
 
-const stripe = Stripe(Deno.env.get('STRIPE_SECRET_KEY'), {
-  apiVersion: '2022-11-15',
-})
-
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-)
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createHmac } from "https://esm.sh/@noble/hashes/hmac";
+import { sha256 } from "https://esm.sh/@noble/hashes/sha256";
+import { encode as utf8Encode } from "https://deno.land/std@0.168.0/encoding/utf8.ts";
+import { decode as base64Decode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 serve(async (req) => {
-  try {
-    const event = await req.json()
+  const stripeSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log('✅ [Webhook] Event received:', event.type)
+  const sig = req.headers.get("stripe-signature")!;
+  const rawBody = await req.text();
 
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object
-      const email = session.customer_email
-      const customerId = session.customer
-      const subscriptionId = session.subscription
+  const encoder = new TextEncoder();
+  const secretBytes = encoder.encode(stripeSecret);
+  const bodyBytes = encoder.encode(rawBody);
 
-      console.log(`📩 Email: ${email}`)
-      console.log(`🔁 Sub ID: ${subscriptionId}`)
+  const hmac = createHmac(sha256, secretBytes);
+  const computedSig = hmac.update(bodyBytes).digest("hex");
 
-      const { data: user, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single()
+  if (!sig.includes(computedSig)) {
+    console.error("❌ Signature mismatch - webhook rejected");
+    return new Response("Invalid signature", { status: 400 });
+  }
 
-      if (userError || !user) {
-        console.error('❌ Utilisateur non trouvé:', userError)
-        return new Response('User not found', { status: 404 })
-      }
+  const event = JSON.parse(rawBody);
+  console.log("📦 Stripe Event:", event.type);
 
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 30)
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object;
+    const customerEmail = session.customer_email;
 
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          stripe_customer_id: customerId,
-          stripe_subscription_id: subscriptionId,
-          subscription_expires_at: expiresAt.toISOString(),
-          pro_subscription_active: true
-        })
-        .eq('id', user.id)
-
-      if (updateError) {
-        console.error('❌ Échec update user:', updateError)
-        return new Response('Update failed', { status: 500 })
-      }
-
-      const { error: insertError } = await supabase.from('payments').insert({
-        user_id: user.id,
-        email,
-        stripe_customer_id: customerId,
-        stripe_subscription_id: subscriptionId,
-        amount: session.amount_total / 100,
-        currency: session.currency,
-        status: 'paid',
-        paid_at: new Date().toISOString()
-      })
-
-      if (insertError) {
-        console.error('❌ Erreur insert payment:', insertError)
-        return new Response('Insert failed', { status: 500 })
-      }
-
-      console.log('✅ Paiement enregistré pour', email)
-      return new Response('Webhook traité avec succès', { status: 200 })
+    if (!customerEmail) {
+      console.error("❌ No customer_email found in session");
+      return new Response("Missing email", { status: 400 });
     }
 
-    return new Response('Événement ignoré', { status: 200 })
-  } catch (err) {
-    console.error('❌ Erreur webhook Stripe:', err.message)
-    return new Response(`Erreur webhook: ${err.message}`, { status: 400 })
+    const { data: user, error: userErr } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", customerEmail)
+      .single();
+
+    if (userErr || !user) {
+      console.error("❌ User not found:", customerEmail, userErr);
+      return new Response("User not found", { status: 404 });
+    }
+
+    const newExpiration = new Date();
+    newExpiration.setDate(newExpiration.getDate() + 30);
+
+    const { error: updateErr } = await supabase
+      .from("users")
+      .update({
+        current_plan: "pro",
+        pro_subscription_active: true,
+        subscription_start_date: new Date().toISOString(),
+        subscription_expires_at: newExpiration.toISOString(),
+        stripe_customer_id: session.customer,
+        stripe_subscription_id: session.subscription,
+      })
+      .eq("id", user.id);
+
+    if (updateErr) {
+      console.error("❌ Failed to update user:", updateErr);
+      return new Response("Update failed", { status: 500 });
+    }
+
+    const { error: insertErr } = await supabase.from("payments").insert({
+      user_id: user.id,
+      stripe_customer_id: session.customer,
+      stripe_subscription_id: session.subscription,
+      status: "active",
+      amount: session.amount_total / 100,
+      currency: session.currency,
+      paid_at: new Date().toISOString(),
+    });
+
+    if (insertErr) {
+      console.error("❌ Failed to insert payment:", insertErr);
+      return new Response("Insert failed", { status: 500 });
+    }
+
+    console.log("✅ Subscription activated for:", customerEmail);
+    return new Response("OK", { status: 200 });
   }
-})
+
+  console.log("ℹ️ Event type not handled:", event.type);
+  return new Response("Ignored", { status: 200 });
+});
