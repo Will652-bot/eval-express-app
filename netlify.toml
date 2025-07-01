@@ -1,1 +1,31 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
 
+[build.environment]
+  NODE_VERSION = "18"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Force deployment to your specific EvalExpress site
+[context.production]
+  command = "npm run build"
+
+# Site configuration - VOTRE PROJET EVALEXPRESS
+[site]
+  id = "f140b985-1a5c-442b-a2b4-bfb8388dde30"
+  name = "evalexpress-app"
+
+# Additional Netlify configuration to force site targeting
+[template.environment]
+  NETLIFY_SITE_ID = "f140b985-1a5c-442b-a2b4-bfb8388dde30"
+
+# Force specific site deployment
+[context.deploy-preview]
+  command = "npm run build"
+
+[context.branch-deploy]
+  command = "npm run build"
