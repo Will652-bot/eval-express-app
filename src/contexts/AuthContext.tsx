@@ -1,3 +1,4 @@
+// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, AuthState } from '../types';
@@ -19,13 +20,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading: true,
   });
 
-  // ✅ PHASE 1: Fonction robuste de mise à jour utilisateur SANS latences artificielles
+  //
+  // ... (Toute votre logique updateUserState et useEffect reste identique)
+  // ... Je la retire ici pour la lisibilité, mais ne la supprimez pas de votre fichier.
+  //
+
   const updateUserState = async (session: any) => {
     console.log('🔄 [AuthContext] updateUserState - Session:', !!session);
     
     if (session?.user) {
       try {
-        // ✅ CORRECTION: Vérifier si l'utilisateur existe dans public.users
         const { data, error } = await supabase
           .from('users')
           .select('*')
@@ -35,7 +39,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.warn('⚠️ [AuthContext] Erreur récupération données utilisateur:', error.message);
           
-          // ✅ NOUVEAU: Si l'utilisateur n'existe pas dans public.users, le créer
           if (error.code === 'PGRST116') { // Code pour "No rows returned"
             console.log('🆕 [AuthContext] Utilisateur non trouvé dans public.users, création automatique');
             
@@ -50,11 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               
             if (insertError) {
               console.error('❌ [AuthContext] Erreur création utilisateur:', insertError.message);
-              // Continuer avec les données de session de base même en cas d'erreur
             } else {
               console.log('✅ [AuthContext] Utilisateur créé avec succès dans public.users');
               
-              // Récupérer les données fraîchement insérées
               const { data: newUserData, error: fetchError } = await supabase
                 .from('users')
                 .select('*')
@@ -82,7 +83,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
           
-          // Continuer avec les données de session de base
           const basicUser = {
             ...session.user,
             role: 'teacher',
@@ -134,7 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // ✅ PHASE 1 CRITIQUE: Écouteur d'authentification UNIQUE et optimisé
   useEffect(() => {
     let mounted = true;
     let authSubscription: any = null;
@@ -143,7 +142,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeAuth = async () => {
       try {
-        // ✅ Récupération session initiale IMMÉDIATE
         console.log('🔍 [AuthContext] Récupération session initiale...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
@@ -156,7 +154,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('📦 [AuthContext] Session initiale:', !!session);
         await updateUserState(session);
 
-        // ✅ UN SEUL écouteur onAuthStateChange
         authSubscription = supabase.auth.onAuthStateChange(
           async (event, newSession) => {
             if (!mounted) return;
@@ -167,7 +164,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               userId: newSession?.user?.id || 'N/A'
             });
 
-            // ✅ CORRECTION: Vérifier si on est dans un flux de récupération de mot de passe
             const urlParams = new URLSearchParams(window.location.search);
             const isRecoveryFlow = urlParams.get("type") === "recovery";
             const isResetPasswordPage = window.location.pathname === '/reset-password';
@@ -177,7 +173,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.log('✅ [AuthContext] SIGNED_IN détecté');
                 await updateUserState(newSession);
                 
-                // ✅ REDIRECTION IMMÉDIATE après SIGNED_IN, sauf pour reset password
                 if (newSession && window.location.pathname === '/login' && !isRecoveryFlow && !isResetPasswordPage) {
                   console.log('🔄 [AuthContext] Redirection immédiate vers dashboard');
                   window.location.replace('/dashboard');
@@ -214,7 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // ✅ Initialiser l'authentification IMMÉDIATEMENT
     initializeAuth();
 
     return () => {
@@ -224,9 +218,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authSubscription.data.subscription.unsubscribe();
       }
     };
-  }, []); // ✅ CRITIQUE: Tableau de dépendances VIDE
+  }, []);
 
-  // ✅ PHASE 3: Fonction signIn optimisée SANS latences
   const signIn = async (email: string, password: string) => {
     try {
       console.log('🔐 [AuthContext] Tentative connexion:', email);
@@ -248,20 +241,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error };
     }
   };
-
+  
+  // =========================================================
+  // ✅ SECTION CORRIGÉE
+  // =========================================================
   const signOut = async () => {
+    console.log('🚪 [AuthContext] Tentative de déconnexion...');
     try {
-      console.log('🚪 [AuthContext] Déconnexion utilisateur');
       const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('❌ [AuthContext] Erreur déconnexion:', error);
+      // On vérifie si l'erreur n'est PAS celle attendue ('Auth session missing')
+      if (error && error.name !== 'AuthSessionMissingError') {
+        throw error; // On lance les vraies erreurs inattendues
       }
     } catch (error) {
-      console.error('❌ [AuthContext] Exception déconnexion:', error);
-      setState({ session: null, user: null, loading: false });
+      console.error('❌ [AuthContext] Erreur inattendue lors du signOut:', error);
+    } finally {
+      // ✅ GARANTIE DE REDIRECTION
+      // Cette partie s'exécute toujours, que le try ait réussi ou échoué.
+      console.log('Redirecting to /login');
+      window.location.replace('/login');
     }
   };
+  // =========================================================
 
   const value = {
     user: state.user,
