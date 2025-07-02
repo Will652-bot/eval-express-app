@@ -4,7 +4,6 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 async function verifyStripeSignature(req: Request, body: string): Promise<boolean> {
-  // ... (la fonction de vérification reste la même que précédemment)
   const stripeSignature = req.headers.get("Stripe-Signature");
   if (!stripeSignature) { return false; }
   const signingSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET")!;
@@ -34,72 +33,61 @@ serve(async (req) => {
   }
 
   const event = JSON.parse(body);
-  console.log("ℹ️ Événement Stripe reçu:", event.type);
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // Utiliser un switch pour gérer plusieurs types d'événements
-  switch (event.type) {
-    case 'checkout.session.completed':
-    case 'invoice.paid': {
-      const session = event.data.object;
-      const customerEmail = session.customer_details?.email ?? session.customer_email;
+  if (event.type === 'checkout.session.completed' || event.type === 'invoice.paid') {
+    const session = event.data.object;
+    const customerEmail = session.customer_details?.email ?? session.customer_email;
 
-      if (!customerEmail) {
-        console.error("❌ Email du client introuvable pour l'événement:", event.type);
-        break;
-      }
-      
-      console.log(`Traitement de l'événement '${event.type}' pour ${customerEmail}`);
-      
-      const { data: user, error: userErr } = await supabase
-        .from("users")
-        .select("id")
-        .eq("email", customerEmail)
-        .single();
-
-      if (userErr || !user) {
-        console.error(`❌ Utilisateur non trouvé: ${customerEmail}`);
-        break;
-      }
-      
-      const { error: updateErr } = await supabase
-        .from("users")
-        .update({
-          current_plan: "pro",
-          pro_subscription_active: true,
-          stripe_customer_id: session.customer,
-          stripe_subscription_id: session.subscription,
-        })
-        .eq("id", user.id);
-
-      if (updateErr) {
-        console.error("❌ Échec de la mise à jour de l'utilisateur:", updateErr);
-        break;
-      }
-
-      const { error: insertErr } = await supabase.from("payments").insert({
-        user_id: user.id,
-        stripe_customer_id: session.customer,
-        stripe_subscription_id: session.subscription,
-        status: "succeeded",
-        amount: session.amount_total / 100,
-        currency: session.currency,
-        paid_at: new Date(session.created * 1000).toISOString(),
-      });
-
-      if (insertErr) {
-          console.error("❌ Échec de l'insertion du paiement:", insertErr);
-      }
-
-      console.log(`✅ Traitement terminé pour ${customerEmail}`);
-      break;
+    if (!customerEmail) {
+      console.error("Email du client introuvable.");
+      return new Response("Email manquant", { status: 400 });
     }
-    default:
-      console.log(`-- Événement ignoré: ${event.type}`);
+    
+    const { data: user } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", customerEmail)
+      .single();
+
+    if (!user) {
+      console.error(`Utilisateur non trouvé: ${customerEmail}`);
+      return new Response("User not found", { status: 404 });
+    }
+    
+    // Mise à jour de la table 'users'
+    await supabase
+      .from("users")
+      .update({
+        current_plan: "pro",
+        pro_subscription_active: true,
+        stripe_customer_id: session.customer,
+        stripe_subscription_id: session.subscription, // Note: ce champ existe sur votre table 'users'
+      })
+      .eq("id", user.id);
+
+    // **CORRECTION : L'objet d'insertion correspond maintenant à votre table 'payments'**
+    const { error: insertErr } = await supabase.from("payments").insert({
+      user_id: user.id,
+      email: customerEmail,
+      plan_name: 'pro',
+      status: 'succeeded',
+      amount: session.amount_total / 100,
+      currency: session.currency,
+      subscription_id: session.subscription, // Nom de colonne corrigé
+      stripe_invoice_id: session.invoice,
+      stripe_checkout_session_id: event.type === 'checkout.session.completed' ? session.id : null,
+      created_at: new Date(session.created * 1000).toISOString(),
+    });
+
+    if (insertErr) {
+        console.error("❌ Échec de l'insertion du paiement:", insertErr);
+    } else {
+        console.log(`✅ Paiement enregistré pour: ${customerEmail}`);
+    }
   }
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
