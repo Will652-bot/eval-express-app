@@ -43,7 +43,6 @@ serve(async (req) => {
     const customerEmail = session.customer_details?.email ?? session.customer_email;
 
     if (!customerEmail) {
-      console.error("Email du client introuvable.");
       return new Response("Email manquant", { status: 400 });
     }
     
@@ -54,30 +53,29 @@ serve(async (req) => {
       .single();
 
     if (!user) {
-      console.error(`Utilisateur non trouvé: ${customerEmail}`);
       return new Response("User not found", { status: 404 });
     }
     
-    // Mise à jour de la table 'users'
     await supabase
       .from("users")
       .update({
         current_plan: "pro",
         pro_subscription_active: true,
         stripe_customer_id: session.customer,
-        stripe_subscription_id: session.subscription, // Note: ce champ existe sur votre table 'users'
+        stripe_subscription_id: session.subscription,
       })
       .eq("id", user.id);
 
-    // **CORRECTION : L'objet d'insertion correspond maintenant à votre table 'payments'**
+    // Objet d'insertion final et complet
     const { error: insertErr } = await supabase.from("payments").insert({
       user_id: user.id,
       email: customerEmail,
       plan_name: 'pro',
       status: 'succeeded',
+      method: 'stripe', // <-- LA CORRECTION FINALE
       amount: session.amount_total / 100,
       currency: session.currency,
-      subscription_id: session.subscription, // Nom de colonne corrigé
+      subscription_id: session.subscription,
       stripe_invoice_id: session.invoice,
       stripe_checkout_session_id: event.type === 'checkout.session.completed' ? session.id : null,
       created_at: new Date(session.created * 1000).toISOString(),
