@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Database, Trash2, Plus, Info, CheckCircle, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm'; // ✅ 1. IMPORTER LE NOUVEAU COMPOSANT
+import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm'; // ✅ IMPORTER LE COMPOSANT ISOLÉ
 
 export const SettingsPage: React.FC = () => {
     const { user } = useAuth();
@@ -63,7 +63,7 @@ export const SettingsPage: React.FC = () => {
         }
     };
     
-    // ✅ TOUTE LA LOGIQUE de handlePasswordUpdate, validatePassword, handlePasswordGenerate a été RETIRÉE d'ici.
+    // ✅ TOUTE LA LOGIQUE de mot de passe a été retirée d'ici.
 
     const handleCreateDemoData = async () => {
         if (!user?.id || !user?.email) {
@@ -235,7 +235,7 @@ export const SettingsPage: React.FC = () => {
                     </form>
                 </Card>
 
-                {/* ✅ 2. L'ANCIEN FORMULAIRE EST REMPLACÉ PAR LE NOUVEAU COMPOSANT */}
+                {/* ✅ L'ANCIEN FORMULAIRE EST REMPLACÉ PAR LE NOUVEAU COMPOSANT DÉDIÉ */}
                 <Card>
                   <UpdatePasswordForm />
                 </Card>
