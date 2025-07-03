@@ -16,19 +16,14 @@ export const SettingsPage: React.FC = () => {
     const [hasDemoData, setHasDemoData] = useState<boolean | null>(null);
     const [checkingDemoStatus, setCheckingDemoStatus] = useState(true);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    
-    // L'état initial est toujours basé sur l'utilisateur du contexte
     const [formData, setFormData] = useState({
         email: user?.email || '',
     });
 
-    // ✅ CORRECTION DE LA FAILLE DE SÉCURITÉ :
-    // Ce `useEffect` écoute les changements sur l'objet `user` du contexte.
-    // Si l'utilisateur change (après une nouvelle connexion), il force la mise à jour
-    // de l'état du formulaire avec le nouvel email.
+    // ✅ CORRECTION FAILLE DE SÉCURITÉ : Met à jour l'email si l'utilisateur change.
     useEffect(() => {
         if (user) {
-            setFormData(prevData => ({ ...prevData, email: user.email || '' }));
+            setFormData({ email: user.email || '' });
             checkDemoDataStatus();
         }
     }, [user]);
