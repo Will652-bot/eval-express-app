@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Database, Trash2, Plus, Info, CheckCircle, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm'; // ✅ IMPORTER LE COMPOSANT ISOLÉ
+import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm';
 
 export const SettingsPage: React.FC = () => {
     const { user } = useAuth();
@@ -16,15 +16,22 @@ export const SettingsPage: React.FC = () => {
     const [hasDemoData, setHasDemoData] = useState<boolean | null>(null);
     const [checkingDemoStatus, setCheckingDemoStatus] = useState(true);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    
+    // L'état initial est toujours basé sur l'utilisateur du contexte
     const [formData, setFormData] = useState({
         email: user?.email || '',
     });
 
+    // ✅ CORRECTION DE LA FAILLE DE SÉCURITÉ :
+    // Ce `useEffect` écoute les changements sur l'objet `user` du contexte.
+    // Si l'utilisateur change (après une nouvelle connexion), il force la mise à jour
+    // de l'état du formulaire avec le nouvel email.
     useEffect(() => {
-        if (user?.id) {
+        if (user) {
+            setFormData(prevData => ({ ...prevData, email: user.email || '' }));
             checkDemoDataStatus();
         }
-    }, [user?.id]);
+    }, [user]);
 
     const checkDemoDataStatus = async () => {
         if (!user?.id) return;
@@ -63,8 +70,6 @@ export const SettingsPage: React.FC = () => {
         }
     };
     
-    // ✅ TOUTE LA LOGIQUE de mot de passe a été retirée d'ici.
-
     const handleCreateDemoData = async () => {
         if (!user?.id || !user?.email) {
             toast.error('Usuário não autenticado');
@@ -235,7 +240,6 @@ export const SettingsPage: React.FC = () => {
                     </form>
                 </Card>
 
-                {/* ✅ L'ANCIEN FORMULAIRE EST REMPLACÉ PAR LE NOUVEAU COMPOSANT DÉDIÉ */}
                 <Card>
                   <UpdatePasswordForm />
                 </Card>
