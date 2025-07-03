@@ -16,6 +16,8 @@ export const SettingsPage: React.FC = () => {
     const [hasDemoData, setHasDemoData] = useState<boolean | null>(null);
     const [checkingDemoStatus, setCheckingDemoStatus] = useState(true);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    
+    // ✅ CORRECTION 1: "currentPassword" retiré de l'état car il est inutile et source d'erreurs.
     const [formData, setFormData] = useState({
         email: user?.email || '',
         newPassword: '',
@@ -33,7 +35,6 @@ export const SettingsPage: React.FC = () => {
 
         try {
             setCheckingDemoStatus(true);
-            console.log('🔍 Vérification du statut des données de démonstration pour:', user.id);
             const { data, error } = await supabase.rpc('has_demo_data', {
                 p_user_id: user.id
             });
@@ -44,7 +45,6 @@ export const SettingsPage: React.FC = () => {
                 return;
             }
 
-            console.log('📊 Statut des données de démonstration reçu:', data);
             setHasDemoData(data);
         } catch (error) {
             console.error('❌ Erreur lors de la vérification du statut:', error);
@@ -55,7 +55,6 @@ export const SettingsPage: React.FC = () => {
     };
 
     const refetchDemoStatus = async () => {
-        console.log('🔄 Revalidation forcée du statut...');
         await checkDemoDataStatus();
     };
 
@@ -84,13 +83,13 @@ export const SettingsPage: React.FC = () => {
             if (error) throw error;
             toast.success('Email atualizado com sucesso! Por favor, verifique seu email para confirmar a alteração.');
         } catch (error: any) {
-            console.error('Error updating email:', error);
             toast.error(error.message || 'Erro ao atualizar email');
         } finally {
             setLoading(false);
         }
     };
 
+    // ✅ CORRECTION 2: La fonction est entièrement revue pour être simple et robuste.
     const handlePasswordUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -106,6 +105,7 @@ export const SettingsPage: React.FC = () => {
 
         setLoading(true);
         try {
+            // On appelle directement la mise à jour. C'est la seule étape nécessaire.
             const { error } = await supabase.auth.updateUser({
                 password: formData.newPassword,
             });
@@ -113,6 +113,7 @@ export const SettingsPage: React.FC = () => {
             if (error) throw error;
 
             toast.success('Senha atualizada com sucesso!');
+            // On vide les champs après le succès.
             setFormData(prev => ({
                 ...prev,
                 newPassword: '',
@@ -122,6 +123,7 @@ export const SettingsPage: React.FC = () => {
             console.error('Error updating password:', error);
             toast.error(error.message || 'Erro ao atualizar senha');
         } finally {
+            // Le `finally` garantit que le chargement s'arrête TOUJOURS.
             setLoading(false);
         }
     };
@@ -139,41 +141,20 @@ export const SettingsPage: React.FC = () => {
             toast.error('Usuário não autenticado');
             return;
         }
-
         setDemoLoading(true);
         try {
-            console.log('🔍 Vérification avant création pour utilisateur:', user.id);
-            const { data: hasData, error: checkError } = await supabase.rpc('has_demo_data', {
-                p_user_id: user.id
-            });
-
-            if (checkError) {
-                console.error('❌ Erreur lors de la vérification:', checkError);
-                throw checkError;
-            }
-
-            console.log('📊 Résultat de la vérification:', hasData);
-
+            const { data: hasData, error: checkError } = await supabase.rpc('has_demo_data', { p_user_id: user.id });
+            if (checkError) { throw checkError; }
             if (hasData === true) {
                 toast.error('Conjunto de dados de demonstração já ativo');
-                console.log('❌ Création bloquée - données déjà présentes');
                 return;
             }
-
-            console.log('✅ Aucune donnée existante, création autorisée');
-            const { error } = await supabase.rpc('generate_demo_data', {
-                p_user_id: user.id,
-                p_user_email: user.email
-            });
-
+            const { error } = await supabase.rpc('generate_demo_data', { p_user_id: user.id, p_user_email: user.email });
             if (error) throw error;
-
             toast.success('✅ Dados de demonstração criados com sucesso');
-            console.log('✅ Données de démonstration créées avec succès');
             await refetchDemoStatus();
             localStorage.removeItem(`demo-banner-dismissed-${user.id}`);
         } catch (error: any) {
-            console.error('❌ Erreur lors de la création des données de démonstration:', error);
             toast.error('❌ Erro ao criar dados de demonstração: ' + (error.message || 'Erro desconhecido'));
         } finally {
             setDemoLoading(false);
@@ -185,33 +166,15 @@ export const SettingsPage: React.FC = () => {
             toast.error('Usuário não autenticado');
             return;
         }
-
         setDemoLoading(true);
         try {
-            console.log('🔍 Vérification avant suppression pour utilisateur:', user.id);
-            const { data: hasData, error: checkError } = await supabase.rpc('has_demo_data_to_delete', {
-                p_user_id: user.id
-            });
-
-            if (checkError) {
-                console.error('❌ Erreur lors de la vérification:', checkError);
-                throw checkError;
-            }
-
-            console.log('📊 Résultat de la vérification:', hasData);
-
+            const { data: hasData, error: checkError } = await supabase.rpc('has_demo_data_to_delete', { p_user_id: user.id });
+            if (checkError) { throw checkError; }
             if (hasData === false) {
                 toast.error('Nenhum conjunto de dados de demonstração está ativo');
-                console.log('❌ Suppression bloquée - aucune donnée trouvée');
                 return;
             }
-
-            console.log('✅ Données trouvées, suppression autorisée');
-            const { error } = await supabase.rpc('delete_demo_data', {
-                p_user_id: user.id,
-                p_user_email: user.email
-            });
-
+            const { error } = await supabase.rpc('delete_demo_data', { p_user_id: user.id, p_user_email: user.email });
             if (error) {
                 if (error.message?.includes('No demo data found for this user')) {
                     toast.error('⚠️ Nenhum dado de demonstração encontrado para exclusão.');
@@ -221,11 +184,9 @@ export const SettingsPage: React.FC = () => {
                 }
             } else {
                 toast.success('✅ Dados de demonstração excluídos com sucesso');
-                console.log('✅ Données de démonstration supprimées avec succès');
                 await refetchDemoStatus();
             }
         } catch (error: any) {
-            console.error('❌ Erreur lors de la suppression des données de démonstration:', error);
             toast.error('❌ Erro ao excluir dados de demonstração: ' + (error.message || 'Erro desconhecido'));
         } finally {
             setDemoLoading(false);
@@ -235,45 +196,23 @@ export const SettingsPage: React.FC = () => {
 
     const getStatusMessage = () => {
         if (checkingDemoStatus || hasDemoData === null) {
-            return {
-                message: '🔄 Verificando status dos dados de demonstração...',
-                bgColor: 'bg-gray-50',
-                borderColor: 'border-gray-200',
-                textColor: 'text-gray-800',
-                icon: <Info className="h-4 w-4" />
-            };
+            return { message: '🔄 Verificando status dos dados de demonstração...', bgColor: 'bg-gray-50', borderColor: 'border-gray-200', textColor: 'text-gray-800', icon: <Info className="h-4 w-4" /> };
         }
         if (hasDemoData) {
-            return {
-                message: '✅ Você possui dados de demonstração ativos em sua conta.',
-                bgColor: 'bg-green-50',
-                borderColor: 'border-green-200',
-                textColor: 'text-green-800',
-                icon: <CheckCircle className="h-4 w-4 text-green-600" />
-            };
+            return { message: '✅ Você possui dados de demonstração ativos em sua conta.', bgColor: 'bg-green-50', borderColor: 'border-green-200', textColor: 'text-green-800', icon: <CheckCircle className="h-4 w-4 text-green-600" /> };
         }
-        return {
-            message: '💡 Nenhum conjunto de dados de demonstração está ativo. Crie um conjunto para explorar a plataforma.',
-            bgColor: 'bg-blue-50',
-            borderColor: 'border-blue-200',
-            textColor: 'text-blue-800',
-            icon: <XCircle className="h-4 w-4 text-blue-600" />
-        };
+        return { message: '💡 Nenhum conjunto de dados de demonstração está ativo. Crie um conjunto para explorar a plataforma.', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', textColor: 'text-blue-800', icon: <XCircle className="h-4 w-4 text-blue-600" /> };
     };
 
     const statusInfo = getStatusMessage();
 
     const getCreateTooltip = () => {
-        if (hasDemoData) {
-            return "Você já possui dados de demonstração ativos";
-        }
+        if (hasDemoData) { return "Você já possui dados de demonstração ativos"; }
         return "Criar dados de exemplo para explorar todas as funcionalidades";
     };
 
     const getDeleteTooltip = () => {
-        if (!hasDemoData) {
-            return "Nenhum conjunto de dados de demonstração encontrado";
-        }
+        if (!hasDemoData) { return "Nenhum conjunto de dados de demonstração encontrado"; }
         return "Remover todos os dados de demonstração da sua conta";
     };
 
@@ -370,6 +309,9 @@ export const SettingsPage: React.FC = () => {
                 <Card>
                     <form onSubmit={handlePasswordUpdate} className="space-y-6 p-6">
                         <h2 className="text-xl font-semibold text-gray-900">Alterar Senha</h2>
+                        
+                        {/* ✅ CORRECTION 3: Le champ "Senha Atual" est retiré du formulaire */}
+                        
                         <Input label="Nova Senha" type="password" value={formData.newPassword} onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })} required fullWidth />
                         <Input label="Confirmar Nova Senha" type="password" value={formData.confirmPassword} onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} required fullWidth />
                         <PasswordGenerator onGenerate={handlePasswordGenerate} />
