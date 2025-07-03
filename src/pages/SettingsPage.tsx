@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { PasswordGenerator } from '../components/auth/PasswordGenerator';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Database, Trash2, Plus, Info, CheckCircle, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm'; // ✅ 1. IMPORTER LE NOUVEAU COMPOSANT
 
 export const SettingsPage: React.FC = () => {
     const { user } = useAuth();
@@ -16,12 +16,8 @@ export const SettingsPage: React.FC = () => {
     const [hasDemoData, setHasDemoData] = useState<boolean | null>(null);
     const [checkingDemoStatus, setCheckingDemoStatus] = useState(true);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    
-    // ✅ CORRECTION 1: "currentPassword" retiré de l'état car il est inutile et source d'erreurs.
     const [formData, setFormData] = useState({
         email: user?.email || '',
-        newPassword: '',
-        confirmPassword: '',
     });
 
     useEffect(() => {
@@ -32,19 +28,10 @@ export const SettingsPage: React.FC = () => {
 
     const checkDemoDataStatus = async () => {
         if (!user?.id) return;
-
         try {
             setCheckingDemoStatus(true);
-            const { data, error } = await supabase.rpc('has_demo_data', {
-                p_user_id: user.id
-            });
-
-            if (error) {
-                console.error('❌ Erreur lors de la vérification du statut:', error);
-                setHasDemoData(false);
-                return;
-            }
-
+            const { data, error } = await supabase.rpc('has_demo_data', { p_user_id: user.id });
+            if (error) { throw error; }
             setHasDemoData(data);
         } catch (error) {
             console.error('❌ Erreur lors de la vérification du statut:', error);
@@ -57,29 +44,16 @@ export const SettingsPage: React.FC = () => {
     const refetchDemoStatus = async () => {
         await checkDemoDataStatus();
     };
-
-    const validatePassword = (password: string) => {
-        const hasUpperCase = /[A-Z]/.test(password);
-        const hasLowerCase = /[a-z]/.test(password);
-        const hasNumbers = /\d/.test(password);
-        const hasSpecialChar = /[!@#$%^&*()_+]/.test(password);
-        const isLongEnough = password.length >= 8;
-        return hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar && isLongEnough;
-    };
-
+    
     const handleEmailUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.email.trim()) {
             toast.error('O email é obrigatório');
             return;
         }
-
         setLoading(true);
         try {
-            const { error } = await supabase.auth.updateUser({
-                email: formData.email,
-            });
-
+            const { error } = await supabase.auth.updateUser({ email: formData.email });
             if (error) throw error;
             toast.success('Email atualizado com sucesso! Por favor, verifique seu email para confirmar a alteração.');
         } catch (error: any) {
@@ -88,53 +62,8 @@ export const SettingsPage: React.FC = () => {
             setLoading(false);
         }
     };
-
-    // ✅ CORRECTION 2: La fonction est entièrement revue pour être simple et robuste.
-    const handlePasswordUpdate = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!validatePassword(formData.newPassword)) {
-            toast.error('A nova senha deve conter no mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais');
-            return;
-        }
-
-        if (formData.newPassword !== formData.confirmPassword) {
-            toast.error('As senhas não coincidem');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            // On appelle directement la mise à jour. C'est la seule étape nécessaire.
-            const { error } = await supabase.auth.updateUser({
-                password: formData.newPassword,
-            });
-
-            if (error) throw error;
-
-            toast.success('Senha atualizada com sucesso!');
-            // On vide les champs après le succès.
-            setFormData(prev => ({
-                ...prev,
-                newPassword: '',
-                confirmPassword: '',
-            }));
-        } catch (error: any) {
-            console.error('Error updating password:', error);
-            toast.error(error.message || 'Erro ao atualizar senha');
-        } finally {
-            // Le `finally` garantit que le chargement s'arrête TOUJOURS.
-            setLoading(false);
-        }
-    };
-
-    const handlePasswordGenerate = (password: string) => {
-        setFormData(prev => ({
-            ...prev,
-            newPassword: password,
-            confirmPassword: password,
-        }));
-    };
+    
+    // ✅ TOUTE LA LOGIQUE de handlePasswordUpdate, validatePassword, handlePasswordGenerate a été RETIRÉE d'ici.
 
     const handleCreateDemoData = async () => {
         if (!user?.id || !user?.email) {
@@ -306,19 +235,9 @@ export const SettingsPage: React.FC = () => {
                     </form>
                 </Card>
 
+                {/* ✅ 2. L'ANCIEN FORMULAIRE EST REMPLACÉ PAR LE NOUVEAU COMPOSANT */}
                 <Card>
-                    <form onSubmit={handlePasswordUpdate} className="space-y-6 p-6">
-                        <h2 className="text-xl font-semibold text-gray-900">Alterar Senha</h2>
-                        
-                        {/* ✅ CORRECTION 3: Le champ "Senha Atual" est retiré du formulaire */}
-                        
-                        <Input label="Nova Senha" type="password" value={formData.newPassword} onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })} required fullWidth />
-                        <Input label="Confirmar Nova Senha" type="password" value={formData.confirmPassword} onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} required fullWidth />
-                        <PasswordGenerator onGenerate={handlePasswordGenerate} />
-                        <Button type="submit" isLoading={loading}>
-                            Atualizar Senha
-                        </Button>
-                    </form>
+                  <UpdatePasswordForm />
                 </Card>
             </div>
 
