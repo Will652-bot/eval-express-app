@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
@@ -13,17 +13,6 @@ export const ResetPasswordForm: React.FC = () => {
     password: '',
     confirmPassword: '',
   });
-
-  // This hook checks for the recovery token in the URL when the page loads.
-  // Supabase automatically creates a session from this token.
-  useEffect(() => {
-    const hash = window.location.hash;
-    // A more robust check for a recovery link
-    if (!hash.includes('access_token') || !hash.includes('type=recovery')) {
-      toast.error("Link de recuperação inválido ou expirado.");
-      navigate('/login');
-    }
-  }, [navigate]);
 
   const validatePassword = (password: string) => {
     const hasUpperCase = /[A-Z]/.test(password);
@@ -49,7 +38,6 @@ export const ResetPasswordForm: React.FC = () => {
 
     setLoading(true);
     try {
-      // Supabase uses the temporary session from the link to authorize this update.
       const { error } = await supabase.auth.updateUser({
         password: formData.password,
       });
@@ -58,7 +46,6 @@ export const ResetPasswordForm: React.FC = () => {
 
       toast.success('Senha redefinida com sucesso! Você já pode fazer o login com sua nova senha.');
       
-      // Sign out from the temporary recovery session and redirect.
       await supabase.auth.signOut();
       navigate('/login');
 
