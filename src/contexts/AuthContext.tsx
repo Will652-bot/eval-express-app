@@ -1,8 +1,8 @@
-// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, AuthState } from '../types';
 
+// ✅ MODIFICATION 1: L'interface est simplifiée pour le Magic Link
 interface AuthContextType {
   user: User | null;
   loading: boolean;
@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.warn('⚠️ [AuthContext] Erreur récupération données utilisateur:', error.message);
           
-          if (error.code === 'PGRST116') {
+          if (error.code === 'PGRST116') { // Code pour "No rows returned"
             console.log('🆕 [AuthContext] Utilisateur non trouvé dans public.users, création automatique');
             
             const { error: insertError } = await supabase
@@ -68,7 +68,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   current_plan: newUserData.current_plan
                 } as User;
                 
-                setState({ session, user: newUser, loading: false });
+                setState({
+                  session,
+                  user: newUser,
+                  loading: false,
+                });
                 return;
               }
             }
@@ -82,7 +86,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             current_plan: 'free'
           } as User;
           
-          setState({ session, user: basicUser, loading: false });
+          setState({
+            session,
+            user: basicUser,
+            loading: false,
+          });
           return;
         }
 
@@ -97,14 +105,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } as User;
         
         console.log('✅ [AuthContext] Utilisateur mis à jour:', newUser.email);
-        setState({ session, user: newUser, loading: false });
+        
+        setState({
+          session,
+          user: newUser,
+          loading: false,
+        });
       } catch (error) {
         console.error('❌ [AuthContext] Exception mise à jour utilisateur:', error);
-        setState({ session: null, user: null, loading: false });
+        setState({
+          session: null,
+          user: null,
+          loading: false,
+        });
       }
     } else {
       console.log('🧹 [AuthContext] Nettoyage état utilisateur');
-      setState({ session: null, user: null, loading: false });
+      setState({
+        session: null,
+        user: null,
+        loading: false,
+      });
     }
   };
 
@@ -126,38 +147,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         console.log('📦 [AuthContext] Session initiale:', !!session);
-        if (mounted) {
-          await updateUserState(session);
-        }
+        await updateUserState(session);
 
         authSubscription = supabase.auth.onAuthStateChange(
           async (event, newSession) => {
             if (!mounted) return;
 
-            console.log('🔔 [AuthContext] AuthStateChange:', { event, hasSession: !!newSession });
+            console.log('🔔 [AuthContext] AuthStateChange:', {
+              event,
+              hasSession: !!newSession,
+              userId: newSession?.user?.id || 'N/A'
+            });
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const isRecoveryFlow = urlParams.get("type") === "recovery";
+            const isResetPasswordPage = window.location.pathname === '/reset-password';
 
             switch (event) {
               case 'SIGNED_IN':
-              case 'TOKEN_REFRESHED':
+                console.log('✅ [AuthContext] SIGNED_IN détecté');
                 await updateUserState(newSession);
-                break;
-              case 'SIGNED_OUT':
-              case 'USER_DELETED':
-                setState({ session: null, user: null, loading: false });
-                if (window.location.pathname !== '/login') {
-                   window.location.replace('/login');
+                
+                if (newSession && (window.location.pathname === '/login' || window.location.pathname === '/') && !isRecoveryFlow && !isResetPasswordPage) {
+                  console.log('🔄 [AuthContext] Redirection immédiate vers dashboard');
+                  window.location.replace('/dashboard');
                 }
                 break;
+                
+              case 'SIGNED_OUT':
+              case 'USER_DELETED':
+                console.log('🚪 [AuthContext] Déconnexion détectée');
+                setState({ session: null, user: null, loading: false });
+                if (window.location.pathname !== '/login' && 
+                    window.location.pathname !== '/reset-password' && 
+                    !isRecoveryFlow && 
+                    !isResetPasswordPage) {
+                  window.location.replace('/login');
+                }
+                break;
+                
+              case 'TOKEN_REFRESHED':
+                console.log('🔄 [AuthContext] Token rafraîchi');
+                await updateUserState(newSession);
+                break;
+                
               default:
+                console.log('🔄 [AuthContext] Autre événement auth:', event);
                 await updateUserState(newSession);
             }
           }
         );
+
       } catch (error) {
         console.error('❌ [AuthContext] Erreur initialisation auth:', error);
-        if (mounted) {
-          setState({ session: null, user: null, loading: false });
-        }
+        setState({ session: null, user: null, loading: false });
       }
     };
 
@@ -172,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // ✅ MODIFICATION 2: La fonction signIn utilise maintenant signInWithOtp pour le Magic Link
   const signIn = async (email: string) => {
     try {
       console.log('🪄 [AuthContext] Envoi du Magic Link pour:', email);
@@ -195,6 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
   
+  // ✅ MODIFICATION 3: La fonction signOut est rendue plus robuste
   const signOut = async () => {
     console.log('🚪 [AuthContext] Tentative de déconnexion...');
     try {
