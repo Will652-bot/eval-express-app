@@ -10,10 +10,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
-  // Pendant que le contexte vérifie l'état d'authentification, on n'affiche rien.
-  // Cela évite un "flash" de la page de login avant la redirection.
+  // ✅ CORRECTION DE SÉCURITÉ :
+  // Tant que le contexte vérifie l'état de l'authentification, on n'affiche rien.
+  // Cela empêche l'accès aux pages protégées pendant une fraction de seconde.
   if (loading) {
-    return null; // Ou un composant de chargement global si vous en avez un.
+    return null; // Affiche une page blanche le temps de la vérification.
   }
 
   // Si le chargement est terminé et que l'utilisateur N'EST PAS authentifié,
