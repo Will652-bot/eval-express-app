@@ -2,11 +2,11 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, AuthState } from '../types';
 
-// ✅ MODIFICATION 1: L'interface est simplifiée pour le Magic Link
+// ✅ L'interface est restaurée pour utiliser email et mot de passe
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -215,31 +215,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // ✅ MODIFICATION 2: La fonction signIn utilise maintenant signInWithOtp pour le Magic Link
-  const signIn = async (email: string) => {
+  // ✅ La fonction signIn est restaurée pour utiliser signInWithPassword
+  const signIn = async (email: string, password: string) => {
     try {
-      console.log('🪄 [AuthContext] Envoi du Magic Link pour:', email);
+      console.log('🔐 [AuthContext] Tentative connexion:', email);
       
-      const { error } = await supabase.auth.signInWithOtp({
-        email: email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-        },
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
       if (error) {
-        console.error('❌ [AuthContext] Erreur envoi Magic Link:', error.message);
+        console.error('❌ [AuthContext] Erreur connexion:', error.message);
         return { error };
       }
 
+      console.log('✅ [AuthContext] Connexion réussie - onAuthStateChange prendra le relais');
       return { error: null };
     } catch (error: any) {
-      console.error('❌ [AuthContext] Exception envoi Magic Link:', error);
+      console.error('❌ [AuthContext] Exception connexion:', error);
       return { error };
     }
   };
   
-  // ✅ MODIFICATION 3: La fonction signOut est rendue plus robuste
   const signOut = async () => {
     console.log('🚪 [AuthContext] Tentative de déconnexion...');
     try {
