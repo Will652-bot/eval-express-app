@@ -14,10 +14,12 @@ export const ResetPasswordForm: React.FC = () => {
     confirmPassword: '',
   });
 
-  // Ce hook vérifie si le token est présent dans l'URL au chargement.
+  // This hook checks for the recovery token in the URL when the page loads.
+  // Supabase automatically creates a session from this token.
   useEffect(() => {
     const hash = window.location.hash;
-    if (!hash.includes('access_token')) {
+    // A more robust check for a recovery link
+    if (!hash.includes('access_token') || !hash.includes('type=recovery')) {
       toast.error("Link de recuperação inválido ou expirado.");
       navigate('/login');
     }
@@ -47,7 +49,7 @@ export const ResetPasswordForm: React.FC = () => {
 
     setLoading(true);
     try {
-      // Supabase utilise la session temporaire créée par le lien pour autoriser cette mise à jour.
+      // Supabase uses the temporary session from the link to authorize this update.
       const { error } = await supabase.auth.updateUser({
         password: formData.password,
       });
@@ -55,7 +57,8 @@ export const ResetPasswordForm: React.FC = () => {
       if (error) throw error;
 
       toast.success('Senha redefinida com sucesso! Você já pode fazer o login com sua nova senha.');
-      // On déconnecte l'utilisateur de la session temporaire et on le redirige.
+      
+      // Sign out from the temporary recovery session and redirect.
       await supabase.auth.signOut();
       navigate('/login');
 
@@ -94,7 +97,7 @@ export const ResetPasswordForm: React.FC = () => {
       />
       <PasswordGenerator onGenerate={handlePasswordGenerate} />
       <Button type="submit" isLoading={loading} className="w-full">
-        Salvar Nova Senha e Entrar
+        Salvar Nova Senha
       </Button>
     </form>
   );
