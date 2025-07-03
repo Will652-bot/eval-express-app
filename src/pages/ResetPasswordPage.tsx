@@ -3,7 +3,6 @@ import { GraduationCap } from 'lucide-react';
 import { ResetPasswordForm } from '../components/auth/ResetPasswordForm';
 import { Card } from '../components/ui/Card';
 
-// ✅ CORRECTION: "export default" a été remplacé par "export const" pour correspondre à l'import dans App.tsx
 export const ResetPasswordPage: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
@@ -19,7 +18,6 @@ export const ResetPasswordPage: React.FC = () => {
             Digite e confirme sua nova senha de acesso abaixo.
           </p>
         </div>
-
         <Card>
           <ResetPasswordForm />
         </Card>
@@ -27,5 +25,3 @@ export const ResetPasswordPage: React.FC = () => {
     </div>
   );
 };
-
-// Note: L'export par défaut a été retiré.
