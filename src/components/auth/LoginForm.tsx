@@ -22,7 +22,7 @@ export const LoginForm: React.FC = () => {
         toast.error(error.message || 'Erro ao enviar o link de acesso.');
       } else {
         toast.success('Link de acesso enviado! Verifique seu email.');
-        setEmail(''); // Vider le champ après l'envoi
+        setEmail('');
       }
     } finally {
       setLoading(false);
@@ -51,6 +51,25 @@ export const LoginForm: React.FC = () => {
           {loading ? 'Enviando...' : 'Enviar Link de Acesso'}
         </Button>
       </form>
+
+      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h3 className="text-sm font-medium text-blue-800 mb-2">
+          Como funciona o acesso?
+        </h3>
+        <ul className="text-xs text-blue-700 space-y-1">
+          <li>• Digite seu email e clique no botão acima.</li>
+          <li>• Você receberá um email com um link de acesso seguro.</li>
+          <li>• Clique no link para entrar na sua conta sem precisar de senha.</li>
+        </ul>
+        <div className="mt-3">
+          <Link
+            to="/register"
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium block"
+          >
+            Não tem uma conta? Registre-se aqui
+          </Link>
+        </div>
+      </div>
     </div>
   );
 };
