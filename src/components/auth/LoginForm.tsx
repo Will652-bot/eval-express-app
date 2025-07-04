@@ -15,7 +15,6 @@ export const LoginForm: React.FC = () => {
     password: '',
   });
 
-  // ✅ PHASE 3: LoginForm optimisé SANS gestion de redirection
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -24,13 +23,11 @@ export const LoginForm: React.FC = () => {
     try {
       console.log('🔐 [LoginForm] Tentative connexion:', formData.email);
 
-      // ✅ PHASE 3: Utiliser signIn du contexte SANS redirection
       const { error } = await signIn(formData.email, formData.password);
 
       if (error) {
         console.error('❌ [LoginForm] Erreur connexion:', error.message);
 
-        // ✅ Gestion spécifique des erreurs
         if (error.message.includes('Invalid login credentials')) {
           setLoginError('Email ou senha incorretos. Verifique seus dados.');
         } else if (error.message.includes('Email not confirmed')) {
@@ -48,7 +45,6 @@ export const LoginForm: React.FC = () => {
       console.log('✅ [LoginForm] Connexion réussie - AuthContext gère la redirection');
       toast.success('Login realizado com sucesso!');
       
-      // ✅ PHASE 3: Nettoyer le formulaire seulement
       setFormData({ email: '', password: '' });
       
     } catch (error: any) {
@@ -114,7 +110,6 @@ export const LoginForm: React.FC = () => {
             autoComplete="current-password"
           />
 
-          {/* ✅ Affichage des erreurs de connexion */}
           {loginError && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3">
               <p className="text-red-600 text-sm">{loginError}</p>

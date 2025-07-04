@@ -19,13 +19,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading: true,
   });
 
-  // ✅ PHASE 1: Fonction robuste de mise à jour utilisateur SANS latences artificielles
   const updateUserState = async (session: any) => {
     console.log('🔄 [AuthContext] updateUserState - Session:', !!session);
     
     if (session?.user) {
       try {
-        // ✅ CORRECTION: Vérifier si l'utilisateur existe dans public.users
         const { data, error } = await supabase
           .from('users')
           .select('*')
@@ -35,232 +33,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.warn('⚠️ [AuthContext] Erreur récupération données utilisateur:', error.message);
           
-          // ✅ NOUVEAU: Si l'utilisateur n'existe pas dans public.users, le créer
-          if (error.code === 'PGRST116') { // Code pour "No rows returned"
-            console.log('🆕 [AuthContext] Utilisateur non trouvé dans public.users, création automatique');
-            
+          if (error.code === 'PGRST116') {
+            console.log('🆕 [AuthContext] Utilisateur non trouvé, création...');
             const { error: insertError } = await supabase
               .from('users')
-              .insert({
-                id: session.user.id,
-                email: session.user.email,
-                role: 'teacher',
-                current_plan: 'free'
-              });
-              
-            if (insertError) {
-              console.error('❌ [AuthContext] Erreur création utilisateur:', insertError.message);
-              // Continuer avec les données de session de base même en cas d'erreur
-            } else {
-              console.log('✅ [AuthContext] Utilisateur créé avec succès dans public.users');
-              
-              // Récupérer les données fraîchement insérées
-              const { data: newUserData, error: fetchError } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-                
-              if (!fetchError && newUserData) {
-                const newUser = {
-                  ...session.user,
-                  role: newUserData.role,
-                  subscription_plan: newUserData.current_plan,
-                  full_name: newUserData.full_name,
-                  pro_subscription_active: newUserData.pro_subscription_active,
-                  subscription_expires_at: newUserData.subscription_expires_at,
-                  current_plan: newUserData.current_plan
-                } as User;
-                
-                setState({
-                  session,
-                  user: newUser,
-                  loading: false,
-                });
-                return;
-              }
-            }
+              .insert({ id: session.user.id, email: session.user.email, role: 'teacher', current_plan: 'free' });
+            if (insertError) throw insertError;
+          } else {
+             throw error;
           }
-          
-          // Continuer avec les données de session de base
-          const basicUser = {
-            ...session.user,
-            role: 'teacher',
-            subscription_plan: 'free',
-            full_name: session.user.email,
-            current_plan: 'free'
-          } as User;
-          
-          setState({
-            session,
-            user: basicUser,
-            loading: false,
-          });
-          return;
         }
 
+        const userData = data || (await supabase.from('users').select('*').eq('id', session.user.id).single()).data;
+        
         const newUser = {
           ...session.user,
-          role: data.role,
-          subscription_plan: data.current_plan,
-          full_name: data.full_name,
-          pro_subscription_active: data.pro_subscription_active,
-          subscription_expires_at: data.subscription_expires_at,
-          current_plan: data.current_plan
+          role: userData.role,
+          subscription_plan: userData.current_plan,
+          full_name: userData.full_name,
+          pro_subscription_active: userData.pro_subscription_active,
+          subscription_expires_at: userData.subscription_expires_at,
+          current_plan: userData.current_plan
         } as User;
         
         console.log('✅ [AuthContext] Utilisateur mis à jour:', newUser.email);
-        
-        setState({
-          session,
-          user: newUser,
-          loading: false,
-        });
+        setState({ session, user: newUser, loading: false });
       } catch (error) {
         console.error('❌ [AuthContext] Exception mise à jour utilisateur:', error);
-        setState({
-          session: null,
-          user: null,
-          loading: false,
-        });
+        setState({ session: null, user: null, loading: false });
       }
     } else {
       console.log('🧹 [AuthContext] Nettoyage état utilisateur');
-      setState({
-        session: null,
-        user: null,
-        loading: false,
-      });
-    }
-  };
-
-  // ✅ PHASE 1 CRITIQUE: Écouteur d'authentification UNIQUE et optimisé
-  useEffect(() => {
-    let mounted = true;
-    let authSubscription: any = null;
-
-    console.log('🚀 [AuthContext] Initialisation du listener d\'authentification');
-
-    const initializeAuth = async () => {
-      try {
-        // ✅ Récupération session initiale IMMÉDIATE
-        console.log('🔍 [AuthContext] Récupération session initiale...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ [AuthContext] Erreur session initiale:', error);
-          setState({ session: null, user: null, loading: false });
-          return;
-        }
-        
-        console.log('📦 [AuthContext] Session initiale:', !!session);
-        await updateUserState(session);
-
-        // ✅ UN SEUL écouteur onAuthStateChange
-        authSubscription = supabase.auth.onAuthStateChange(
-          async (event, newSession) => {
-            if (!mounted) return;
-
-            console.log('🔔 [AuthContext] AuthStateChange:', {
-              event,
-              hasSession: !!newSession,
-              userId: newSession?.user?.id || 'N/A'
-            });
-
-            // ✅ CORRECTION: Vérifier si on est dans un flux de récupération de mot de passe
-            const urlParams = new URLSearchParams(window.location.search);
-            const isRecoveryFlow = urlParams.get("type") === "recovery";
-            const isResetPasswordPage = window.location.pathname === '/reset-password';
-
-            switch (event) {
-              case 'SIGNED_IN':
-                console.log('✅ [AuthContext] SIGNED_IN détecté');
-                await updateUserState(newSession);
-                
-                // ✅ REDIRECTION IMMÉDIATE après SIGNED_IN, sauf pour reset password
-                if (newSession && window.location.pathname === '/login' && !isRecoveryFlow && !isResetPasswordPage) {
-                  console.log('🔄 [AuthContext] Redirection immédiate vers dashboard');
-                  window.location.replace('/dashboard');
-                }
-                break;
-                
-              case 'SIGNED_OUT':
-              case 'USER_DELETED':
-                console.log('🚪 [AuthContext] Déconnexion détectée');
-                setState({ session: null, user: null, loading: false });
-                if (window.location.pathname !== '/login' && 
-                    window.location.pathname !== '/reset-password' && 
-                    !isRecoveryFlow && 
-                    !isResetPasswordPage) {
-                  window.location.replace('/login');
-                }
-                break;
-                
-              case 'TOKEN_REFRESHED':
-                console.log('🔄 [AuthContext] Token rafraîchi');
-                await updateUserState(newSession);
-                break;
-                
-              default:
-                console.log('🔄 [AuthContext] Autre événement auth:', event);
-                await updateUserState(newSession);
-            }
-          }
-        );
-
-      } catch (error) {
-        console.error('❌ [AuthContext] Erreur initialisation auth:', error);
-        setState({ session: null, user: null, loading: false });
-      }
-    };
-
-    // ✅ Initialiser l'authentification IMMÉDIATEMENT
-    initializeAuth();
-
-    return () => {
-      mounted = false;
-      if (authSubscription?.data?.subscription) {
-        console.log('🧹 [AuthContext] Nettoyage subscription auth');
-        authSubscription.data.subscription.unsubscribe();
-      }
-    };
-  }, []); // ✅ CRITIQUE: Tableau de dépendances VIDE
-
-  // ✅ PHASE 3: Fonction signIn optimisée SANS latences
-  const signIn = async (email: string, password: string) => {
-    try {
-      console.log('🔐 [AuthContext] Tentative connexion:', email);
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error('❌ [AuthContext] Erreur connexion:', error.message);
-        return { error };
-      }
-
-      console.log('✅ [AuthContext] Connexion réussie - onAuthStateChange prendra le relais');
-      return { error: null };
-    } catch (error: any) {
-      console.error('❌ [AuthContext] Exception connexion:', error);
-      return { error };
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      console.log('🚪 [AuthContext] Déconnexion utilisateur');
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('❌ [AuthContext] Erreur déconnexion:', error);
-      }
-    } catch (error) {
-      console.error('❌ [AuthContext] Exception déconnexion:', error);
       setState({ session: null, user: null, loading: false });
     }
+  };
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      await updateUserState(session);
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('🔔 [AuthContext] AuthStateChange:', { event, hasSession: !!session });
+
+        // ✅ CORRECTION : Ne pas rediriger si l'événement est PASSWORD_RECOVERY
+        if (event === 'PASSWORD_RECOVERY') {
+          console.log('🔄 [AuthContext] Événement de récupération de mot de passe détecté. Aucune redirection.');
+          // On met à jour l'état pour que l'utilisateur soit temporairement "connecté"
+          // et puisse accéder à la page de réinitialisation.
+          await updateUserState(session);
+          return;
+        }
+
+        if (event === 'SIGNED_IN') {
+          await updateUserState(session);
+          if (session && window.location.pathname === '/login') {
+            window.location.replace('/dashboard');
+          }
+        }
+
+        if (event === 'SIGNED_OUT') {
+          setState({ session: null, user: null, loading: false });
+          if (window.location.pathname !== '/login') {
+            window.location.replace('/login');
+          }
+        }
+      });
+
+      return () => {
+        subscription?.unsubscribe();
+      };
+    };
+
+    initializeAuth();
+  }, []);
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error || null };
+  };
+  
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setState({ session: null, user: null, loading: false });
+    window.location.replace('/login');
   };
 
   const value = {
