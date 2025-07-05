@@ -21,34 +21,33 @@ export const LoginForm: React.FC = () => {
     setLoginError('');
 
     try {
-      console.log('🔐 [LoginForm] Tentative connexion:', formData.email);
+      console.log('🔐 [LoginForm] Tentando login para:', formData.email);
 
       const { error } = await signIn(formData.email, formData.password);
 
       if (error) {
-        console.error('❌ [LoginForm] Erreur connexion:', error.message);
+        console.warn('❌ [LoginForm] Erro ao fazer login:', error.message);
 
         if (error.message.includes('Invalid login credentials')) {
           setLoginError('Email ou senha incorretos. Verifique seus dados.');
-        } else if (error.message.includes('Email not confirmed')) {
+        } else if (error.message.includes('Email not confirmed') || error.message.includes('Email not confirmed')) {
           setLoginError('Você precisa verificar seu e-mail antes de continuar.');
         } else if (error.message.includes('Too many requests')) {
-          setLoginError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
+          setLoginError('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
         } else if (error.message.includes('User not found')) {
           setLoginError('Usuário não encontrado. Verifique seu email ou crie uma conta.');
         } else {
-          setLoginError('Email ou senha incorretos. Verifique seus dados.');
+          setLoginError('Erro ao fazer login. Tente novamente.');
         }
         return;
       }
 
-      console.log('✅ [LoginForm] Connexion réussie - AuthContext gère la redirection');
       toast.success('Login realizado com sucesso!');
-      
       setFormData({ email: '', password: '' });
-      
-    } catch (error: any) {
-      console.error('❌ [LoginForm] Exception connexion:', error);
+      console.log('✅ [LoginForm] Login bem-sucedido - redirecionamento via AuthContext');
+
+    } catch (err: any) {
+      console.error('❌ [LoginForm] Exception:', err.message);
       setLoginError('Erro inesperado ao fazer login. Tente novamente.');
     } finally {
       setLoading(false);
@@ -62,27 +61,26 @@ export const LoginForm: React.FC = () => {
     }
 
     try {
-      console.log('📧 [LoginForm] Renvoi email vérification:', formData.email);
+      console.log('📧 [LoginForm] Reenviando verificação para:', formData.email);
 
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: formData.email,
         options: {
-          emailRedirectTo: `${window.location.origin}/verify`
-        }
+          emailRedirectTo: `${window.location.origin}/verify`,
+        },
       });
 
       if (error) {
-        console.error('❌ [LoginForm] Erreur renvoi email:', error.message);
+        console.error('❌ [LoginForm] Erro ao reenviar email de verificação:', error.message);
         toast.error('Erro ao reenviar email de verificação');
         return;
       }
 
-      console.log('✅ [LoginForm] Email renvoyé avec succès');
-      toast.success('Email de verificação reenviado! Verifique sua caixa de entrada.');
-    } catch (error: any) {
-      console.error('❌ [LoginForm] Exception renvoi email:', error);
-      toast.error('Erro ao reenviar email de verificação');
+      toast.success('Email de verificação reenviado com sucesso!');
+    } catch (err: any) {
+      console.error('❌ [LoginForm] Exception reenviando verificação:', err.message);
+      toast.error('Erro inesperado ao reenviar email.');
     }
   };
 
