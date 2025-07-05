@@ -1,3 +1,5 @@
+// src/pages/PaymentSuccessPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle, Crown, ArrowLeft, Home } from 'lucide-react';
@@ -13,20 +15,17 @@ export const PaymentSuccessPage: React.FC = () => {
   const [subscriptionStatus, setSubscriptionStatus] = useState<'checking' | 'active' | 'pending'>('checking');
 
   useEffect(() => {
-    // Stripe session verification
     const sessionId = searchParams.get('session_id');
-    
-    console.log('🔍 [PaymentSuccess] Session ID:', sessionId);
 
-    // Simulate verification delay for better UX
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [PaymentSuccess] Session ID:', sessionId);
+    }
+
     const timer = setTimeout(() => {
       if (sessionId) {
-        console.log('✅ [PaymentSuccess] Session ID found, payment confirmed');
         setStatus('success');
-        // Start checking subscription status
         checkSubscriptionStatus();
       } else {
-        console.log('❌ [PaymentSuccess] Session ID missing');
         setStatus('error');
       }
     }, 1500);
@@ -38,7 +37,7 @@ export const PaymentSuccessPage: React.FC = () => {
     if (!user?.id) return;
 
     let attempts = 0;
-    const maxAttempts = 12; // 1 minute total (5s intervals)
+    const maxAttempts = 12;
 
     const checkStatus = async () => {
       try {
@@ -50,30 +49,28 @@ export const PaymentSuccessPage: React.FC = () => {
 
         if (error) throw error;
 
-        console.log('📊 [PaymentSuccess] Subscription status:', data);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 [PaymentSuccess] Subscription status:', data);
+        }
 
         if (data?.pro_subscription_active === true || data?.current_plan === 'pro') {
           setSubscriptionStatus('active');
-          return true;
-        }
-
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(checkStatus, 5000); // Check every 5 seconds
         } else {
-          setSubscriptionStatus('pending');
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(checkStatus, 5000);
+          } else {
+            setSubscriptionStatus('pending');
+          }
         }
-
-        return false;
       } catch (error) {
-        console.error('❌ [PaymentSuccess] Error checking subscription:', error);
+        console.error('❌ [PaymentSuccess] Error:', error);
         attempts++;
         if (attempts < maxAttempts) {
           setTimeout(checkStatus, 5000);
         } else {
           setSubscriptionStatus('pending');
         }
-        return false;
       }
     };
 
@@ -149,7 +146,7 @@ export const PaymentSuccessPage: React.FC = () => {
         }`}>
           <div className="text-center">
             {getStatusIcon()}
-            
+
             <h2 className={`text-xl font-semibold mb-4 ${
               status === 'success' ? 'text-green-700' :
               status === 'error' ? 'text-red-700' :
@@ -159,7 +156,7 @@ export const PaymentSuccessPage: React.FC = () => {
               {status === 'success' && 'Bem-vindo ao Plano Pro!'}
               {status === 'error' && 'Falha na Verificação'}
             </h2>
-            
+
             <p className={`text-base mb-6 ${
               status === 'success' ? 'text-green-700' :
               status === 'error' ? 'text-red-700' :
@@ -170,7 +167,7 @@ export const PaymentSuccessPage: React.FC = () => {
               {status === 'error' && 'Não foi possível confirmar seu pagamento. Entre em contato com o suporte se o problema persistir.'}
             </p>
 
-            {/* Subscription Status */}
+            {/* Subscription block */}
             {status === 'success' && (
               <div className={`${subscriptionInfo.bgColor} border ${subscriptionInfo.borderColor} rounded-md p-4 mb-6`}>
                 <h3 className={`font-medium ${subscriptionInfo.color} mb-2`}>
@@ -179,7 +176,7 @@ export const PaymentSuccessPage: React.FC = () => {
                 <p className={`text-sm ${subscriptionInfo.color} mb-3`}>
                   {subscriptionInfo.message}
                 </p>
-                
+
                 {subscriptionStatus === 'active' && (
                   <div className="text-sm text-green-700 space-y-1">
                     <p className="font-medium">Agora você tem acesso a:</p>
@@ -203,7 +200,7 @@ export const PaymentSuccessPage: React.FC = () => {
             <>
               <Link
                 to="/dashboard"
-                className="w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition-colors duration-200"
+                className="w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition"
               >
                 <Home className="h-5 w-5 mr-2" />
                 Ir para o Dashboard
@@ -211,7 +208,7 @@ export const PaymentSuccessPage: React.FC = () => {
 
               <Link
                 to="/plans"
-                className="w-full flex items-center justify-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200"
+                className="w-full flex items-center justify-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition"
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />
                 Ver Planos
@@ -220,7 +217,6 @@ export const PaymentSuccessPage: React.FC = () => {
           )}
         </div>
 
-        {/* Support info for errors */}
         {status === 'error' && (
           <div className="text-center text-sm text-gray-500">
             <p>Precisa de ajuda?</p>
@@ -233,7 +229,6 @@ export const PaymentSuccessPage: React.FC = () => {
           </div>
         )}
 
-        {/* Debug info in development */}
         {process.env.NODE_ENV === 'development' && (
           <div className="text-xs text-gray-400 bg-gray-100 p-2 rounded">
             <p>Debug Info:</p>
