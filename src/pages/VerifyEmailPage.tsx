@@ -18,28 +18,20 @@ export const VerifyEmailPage: React.FC = () => {
   useEffect(() => {
     const handleEmailVerification = async () => {
       try {
-        // Vérifie d'abord s'il s'agit du nouveau flux (code dans l'URL)
+        // 1. Nouveau flux avec `?code=`
         const code = searchParams.get('code');
-
         if (code) {
-          console.log('🔁 [VerifyEmail] Flux Supabase moderne avec code détecté');
-
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-
           if (error) {
-            console.error('❌ [VerifyEmail] Erreur exchangeCodeForSession:', error.message);
+            console.error('[VerifyEmail] Erreur exchangeCodeForSession:', error.message);
             setErrorMessage('Link de verificação inválido ou expirado.');
             setVerificationStatus('error');
             return;
           }
-
           if (data.user) {
             const email = data.user.email || '';
             setUserEmail(email);
-            console.log('✅ [VerifyEmail] Utilisateur connecté via exchangeCodeForSession:', data.user);
-
             await ensureUserExists(data.user.id, email);
-
             setVerificationStatus('success');
             toast.success('Email verificado com sucesso! Redirecionando...');
             setTimeout(() => navigate('/login'), 2000);
@@ -47,21 +39,33 @@ export const VerifyEmailPage: React.FC = () => {
           }
         }
 
-        // Si aucun code → fallback vers fragments #access_token (ancien)
+        // 2. Fallback legacy: #access_token
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
+        const error = hashParams.get('error');
+        const errorCode = hashParams.get('error_code');
+
+        if (error === 'access_denied' && errorCode === 'otp_expired') {
+          setErrorMessage('Seu link de verificação expirou. Solicite um novo link de confirmação.');
+          setVerificationStatus('error');
+          return;
+        }
+
+        if (error) {
+          setErrorMessage(`Erro na verificação: ${error}`);
+          setVerificationStatus('error');
+          return;
+        }
 
         if (accessToken && refreshToken) {
-          console.log('🔁 [VerifyEmail] Flux legacy avec access_token détecté');
-
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
-            refresh_token: refreshToken
+            refresh_token: refreshToken,
           });
 
           if (error) {
-            console.error('❌ [VerifyEmail] Erreur setSession:', error.message);
+            console.error('[VerifyEmail] Erreur setSession:', error.message);
             setErrorMessage('Link inválido ou expirado.');
             setVerificationStatus('error');
             return;
@@ -81,7 +85,7 @@ export const VerifyEmailPage: React.FC = () => {
         setErrorMessage('Link de verificação inválido ou não encontrado.');
         setVerificationStatus('error');
       } catch (err: any) {
-        console.error('❌ [VerifyEmail] Exception:', err);
+        console.error('[VerifyEmail] Exception:', err);
         setErrorMessage('Erro inesperado durante a verificação.');
         setVerificationStatus('error');
       } finally {
@@ -97,24 +101,15 @@ export const VerifyEmailPage: React.FC = () => {
           .eq('id', id)
           .maybeSingle();
 
-        if (checkError) {
-          console.warn('[VerifyEmail] Erro ao verificar existência do usuário:', checkError.message);
-        }
-
         if (!existingUser) {
           const { error: insertError } = await supabase
             .from('users')
-            .insert({
-              id,
-              email,
-              role: 'teacher',
-              current_plan: 'free'
-            });
+            .insert({ id, email, role: 'teacher', current_plan: 'free' });
 
           if (insertError) {
             console.warn('[VerifyEmail] Erro ao inserir usuário:', insertError.message);
           } else {
-            console.log('✅ [VerifyEmail] Usuário inserido com sucesso em public.users');
+            console.log('[VerifyEmail] Usuário inserido com sucesso.');
           }
         }
       } catch (err: any) {
@@ -123,7 +118,7 @@ export const VerifyEmailPage: React.FC = () => {
     };
 
     handleEmailVerification();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   const handleRetryVerification = () => {
     setRetryCount(prev => prev + 1);
