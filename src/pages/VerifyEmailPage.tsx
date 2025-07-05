@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { GraduationCap, CheckCircle, AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 
 export const VerifyEmailPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [verificationStatus, setVerificationStatus] = useState<'success' | 'error' | 'processing'>('processing');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -17,147 +18,122 @@ export const VerifyEmailPage: React.FC = () => {
   useEffect(() => {
     const handleEmailVerification = async () => {
       try {
-        // ✅ PHASE 4: Extraire les paramètres de l'URL IMMÉDIATEMENT
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const accessToken = hashParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token');
-        const type = hashParams.get('type');
-        const error = hashParams.get('error');
-        const errorCode = hashParams.get('error_code');
+        // Vérifie d'abord s'il s'agit du nouveau flux (code dans l'URL)
+        const code = searchParams.get('code');
 
-        console.log('🔍 [VerifyEmail] Paramètres URL:', {
-          type, 
-          hasAccessToken: !!accessToken, 
-          hasRefreshToken: !!refreshToken,
-          error,
-          errorCode
-        });
+        if (code) {
+          console.log('🔁 [VerifyEmail] Flux Supabase moderne avec code détecté');
 
-        // ✅ PHASE 4: Gestion spécifique de otp_expired
-        if (error === 'access_denied' && errorCode === 'otp_expired') {
-          console.log('⏰ [VerifyEmail] OTP expiré détecté');
-          setErrorMessage('Seu link de verificação expirou. Solicite um novo link de confirmação.');
-          setVerificationStatus('error');
-          setLoading(false);
-          return;
-        }
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-        // Autres erreurs dans l'URL
-        if (error) {
-          console.log('❌ [VerifyEmail] Erreur dans URL:', error);
-          setErrorMessage(`Erro na verificação: ${error}`);
-          setVerificationStatus('error');
-          setLoading(false);
-          return;
-        }
-
-        // ✅ Vérifier que c'est bien une vérification d'email
-        if (type === 'signup' && accessToken && refreshToken) {
-          console.log('📧 [VerifyEmail] Flux de vérification détecté');
-          
-          // ✅ PHASE 4: Établir la session IMMÉDIATEMENT
-          const { data, error: sessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          });
-
-          if (sessionError) {
-            console.error('❌ [VerifyEmail] Erreur session:', sessionError.message);
-            setErrorMessage('Link de verificação inválido ou expirado');
+          if (error) {
+            console.error('❌ [VerifyEmail] Erreur exchangeCodeForSession:', error.message);
+            setErrorMessage('Link de verificação inválido ou expirado.');
             setVerificationStatus('error');
-            setLoading(false);
             return;
           }
 
           if (data.user) {
             const email = data.user.email || '';
             setUserEmail(email);
+            console.log('✅ [VerifyEmail] Utilisateur connecté via exchangeCodeForSession:', data.user);
 
-            console.log('✅ [VerifyEmail] Vérification réussie:', {
-              user_id: data.user.id,
-              email: data.user.email,
-              confirmed_at: data.user.email_confirmed_at
-            });
-            
-            // ✅ CORRECTION: Insérer l'utilisateur dans la table users si nécessaire
-            try {
-              // Vérifier si l'utilisateur existe déjà dans public.users
-              const { data: existingUser, error: checkError } = await supabase
-                .from('users')
-                .select('id')
-                .eq('id', data.user.id)
-                .maybeSingle();
-                
-              if (checkError && checkError.code !== 'PGRST116') {
-                console.warn('⚠️ [VerifyEmail] Erreur vérification utilisateur:', checkError.message);
-              }
-              
-              // Si l'utilisateur n'existe pas, l'insérer
-              if (!existingUser) {
-                console.log('🆕 [VerifyEmail] Utilisateur non trouvé dans public.users, création automatique');
-                
-                const { error: insertError } = await supabase
-                  .from('users')
-                  .insert({
-                    id: data.user.id,
-                    email: data.user.email,
-                    role: 'teacher',
-                    current_plan: 'free'
-                  });
-
-                if (insertError) {
-                  console.warn('⚠️ [VerifyEmail] Erreur insertion users:', insertError.message);
-                } else {
-                  console.log('✅ [VerifyEmail] Utilisateur inséré dans public.users avec succès');
-                }
-              } else {
-                console.log('✅ [VerifyEmail] Utilisateur déjà présent dans public.users');
-              }
-            } catch (insertErr: any) {
-              console.warn('⚠️ [VerifyEmail] Exception insertion users:', insertErr.message);
-            }
+            await ensureUserExists(data.user.id, email);
 
             setVerificationStatus('success');
             toast.success('Email verificado com sucesso! Redirecionando...');
-            
-            // ✅ PHASE 4: Redirection IMMÉDIATE vers login
-            setTimeout(() => {
-              navigate('/login');
-            }, 2000);
+            setTimeout(() => navigate('/login'), 2000);
             return;
           }
         }
 
-        // Si pas de tokens valides ou type incorrect
-        console.log('❌ [VerifyEmail] Paramètres de vérification invalides');
-        setErrorMessage('Link de verificação inválido ou não encontrado');
+        // Si aucun code → fallback vers fragments #access_token (ancien)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+
+        if (accessToken && refreshToken) {
+          console.log('🔁 [VerifyEmail] Flux legacy avec access_token détecté');
+
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          if (error) {
+            console.error('❌ [VerifyEmail] Erreur setSession:', error.message);
+            setErrorMessage('Link inválido ou expirado.');
+            setVerificationStatus('error');
+            return;
+          }
+
+          if (data.user) {
+            const email = data.user.email || '';
+            setUserEmail(email);
+            await ensureUserExists(data.user.id, email);
+            setVerificationStatus('success');
+            toast.success('Email verificado com sucesso! Redirecionando...');
+            setTimeout(() => navigate('/login'), 2000);
+            return;
+          }
+        }
+
+        setErrorMessage('Link de verificação inválido ou não encontrado.');
         setVerificationStatus('error');
-        
-      } catch (error: any) {
-        console.error('❌ [VerifyEmail] Exception vérification:', error);
-        setErrorMessage('Erro ao processar verificação de email');
+      } catch (err: any) {
+        console.error('❌ [VerifyEmail] Exception:', err);
+        setErrorMessage('Erro inesperado durante a verificação.');
         setVerificationStatus('error');
       } finally {
         setLoading(false);
       }
     };
 
+    const ensureUserExists = async (id: string, email: string) => {
+      try {
+        const { data: existingUser, error: checkError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (checkError) {
+          console.warn('[VerifyEmail] Erro ao verificar existência do usuário:', checkError.message);
+        }
+
+        if (!existingUser) {
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert({
+              id,
+              email,
+              role: 'teacher',
+              current_plan: 'free'
+            });
+
+          if (insertError) {
+            console.warn('[VerifyEmail] Erro ao inserir usuário:', insertError.message);
+          } else {
+            console.log('✅ [VerifyEmail] Usuário inserido com sucesso em public.users');
+          }
+        }
+      } catch (err: any) {
+        console.warn('[VerifyEmail] Erro ao inserir/verificar usuário:', err.message);
+      }
+    };
+
     handleEmailVerification();
   }, [navigate]);
 
-  // ✅ PHASE 4: Fonction de retry pour les cas d'échec
-  const handleRetryVerification = async () => {
+  const handleRetryVerification = () => {
     setRetryCount(prev => prev + 1);
     setLoading(true);
     setVerificationStatus('processing');
     setErrorMessage(null);
-
-    // Relancer le processus de vérification
     window.location.reload();
   };
 
   const handleRequestNewLink = () => {
-    // Rediriger vers check-email pour demander un nouveau lien
     navigate('/check-email');
   };
 
@@ -212,10 +188,7 @@ export const VerifyEmailPage: React.FC = () => {
                 </div>
               </div>
 
-              <Button
-                onClick={() => navigate('/login')}
-                className="w-full"
-              >
+              <Button onClick={() => navigate('/login')} className="w-full">
                 Ir para Login
               </Button>
             </div>
@@ -225,7 +198,6 @@ export const VerifyEmailPage: React.FC = () => {
     );
   }
 
-  // ✅ PHASE 4: État d'erreur avec options de récupération
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
@@ -272,7 +244,7 @@ export const VerifyEmailPage: React.FC = () => {
               >
                 Solicitar Novo Link de Verificação
               </Button>
-              
+
               {retryCount < 2 && (
                 <Button
                   onClick={handleRetryVerification}
@@ -282,7 +254,7 @@ export const VerifyEmailPage: React.FC = () => {
                   Tentar Novamente {retryCount > 0 && `(${retryCount + 1}ª tentativa)`}
                 </Button>
               )}
-              
+
               <Button
                 onClick={() => navigate('/login')}
                 variant="ghost"
