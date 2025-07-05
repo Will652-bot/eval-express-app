@@ -18,7 +18,6 @@ export const VerifyEmailPage: React.FC = () => {
   useEffect(() => {
     const handleEmailVerification = async () => {
       try {
-        // 1. Nouveau flux avec `?code=`
         const code = searchParams.get('code');
         if (code) {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
@@ -39,7 +38,7 @@ export const VerifyEmailPage: React.FC = () => {
           }
         }
 
-        // 2. Fallback legacy: #access_token
+        // Fallback legacy : ?access_token=...
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
@@ -106,14 +105,15 @@ export const VerifyEmailPage: React.FC = () => {
             .from('users')
             .insert({ id, email, role: 'teacher', current_plan: 'free' });
 
-          if (insertError) {
+          if (insertError && !insertError.message.includes('duplicate key')) {
             console.warn('[VerifyEmail] Erro ao inserir usuário:', insertError.message);
+            toast.error('Não foi possível registrar o usuário na base de dados.');
           } else {
             console.log('[VerifyEmail] Usuário inserido com sucesso.');
           }
         }
       } catch (err: any) {
-        console.warn('[VerifyEmail] Erro ao inserir/verificar usuário:', err.message);
+        console.warn('[VerifyEmail] Erro ao verificar/inserir usuário:', err.message);
       }
     };
 
