@@ -13,26 +13,17 @@ export const StripeButton: React.FC<StripeButtonProps> = ({ className }) => {
   const { user } = useAuth();
   const [processing, setProcessing] = useState(false);
 
-  // Check if user needs Pro subscription
   const needsProSubscription = React.useMemo(() => {
     if (!user) return false;
-    
-    // If subscription is not active
     if (!user.pro_subscription_active) return true;
-    
-    // If no expiration date, consider as active (legacy)
     if (!user.subscription_expires_at) return false;
-    
-    // Check if subscription has expired
+
     const expirationDate = new Date(user.subscription_expires_at);
-    const now = new Date();
-    
-    return expirationDate <= now;
+    return expirationDate <= new Date();
   }, [user]);
 
-  // Detect Bolt Preview environment
   const isBoltPreview = window.location.hostname.includes('webcontainer-api.io') || 
-                       window.location.hostname.includes('bolt.new');
+                        window.location.hostname.includes('bolt.new');
 
   const handleSubscribe = async () => {
     if (!user?.id || !user?.email) {
@@ -40,36 +31,19 @@ export const StripeButton: React.FC<StripeButtonProps> = ({ className }) => {
       return;
     }
 
-    // Fallback for Bolt Preview environment
     if (isBoltPreview) {
-      toast.error('Funcionalidade de pagamento não disponível no ambiente de preview. Acesse a versão deployada para testar pagamentos.');
-      console.warn('🚫 [StripeButton] Pagamento bloqueado em modo Preview Bolt');
+      toast.error('Pagamento indisponível no ambiente de preview. Use a versão publicada.');
       return;
     }
 
     setProcessing(true);
     
     try {
-      console.log('🚀 [StripeButton] Iniciando processo de pagamento Stripe...');
-      console.log('👤 [StripeButton] Usuário:', { id: user.id, email: user.email });
-      
-      // Get user session token
       const sessionResult = await supabase.auth.getSession();
       const token = sessionResult.data.session?.access_token;
+      if (!token) throw new Error('Token de sessão não encontrado.');
 
-      if (!token) {
-        throw new Error('Token de sessão não encontrado.');
-      }
-      
-      // Use Supabase URL from environment variable
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-link`;
-      
-      // Send customer email explicitly
-      const requestData = {
-        customer_email: user.email
-      };
-
-      console.log('📤 [StripeButton] Envio dados para Edge Function:', JSON.stringify(requestData));
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -77,60 +51,35 @@ export const StripeButton: React.FC<StripeButtonProps> = ({ className }) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestData),
+        body: JSON.stringify({ customer_email: user.email }),
       });
 
-      console.log('📥 [StripeButton] Resposta recebida:', response.status, response.statusText);
-
       if (!response.ok) {
-        let errorMessage = 'Erro desconhecido';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorData.details || `Erro HTTP ${response.status}`;
-          console.error('❌ [StripeButton] Erro API detalhado:', errorData);
-        } catch (parseError) {
-          console.error('❌ [StripeButton] Erro ao analisar resposta de erro:', parseError);
-          errorMessage = `Erro HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || errorData.details || `Erro HTTP ${response.status}`;
+        throw new Error(errorMsg);
       }
 
       const result = await response.json();
-      console.log('✅ [StripeButton] Dados de checkout recebidos:', result);
-      
-      // Redirect to Stripe URL
-      if (!result.url) {
-        throw new Error('URL de checkout não recebida');
-      }
+      if (!result.url) throw new Error('URL de checkout não recebida');
 
-      console.log('🔄 [StripeButton] Redirecionando para Stripe Checkout...');
-      
-      // Redirect to Stripe Checkout
       window.location.href = result.url;
-      
+
     } catch (error: any) {
-      console.error('❌ [StripeButton] Erro ao criar checkout:', error);
-      
-      // Specific error messages based on context
+      console.error('❌ Erro StripeButton:', error);
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        toast.error('Erro de conectividade. Verifique sua conexão ou tente na versão deployada.');
+        toast.error('Erro de conexão. Verifique sua internet ou use a versão deployada.');
       } else if (error.message.includes('CORS')) {
-        toast.error('Erro de CORS. Esta funcionalidade requer a versão deployada.');
-      } else if (error.message.includes('customer_email is required')) {
-        toast.error('Erro: Email do cliente não disponível. Verifique sua conta.');
-        console.error('❌ [StripeButton] Email problema:', user?.email);
+        toast.error('Erro de CORS. Teste na versão publicada.');
       } else {
-        toast.error(`Erro ao iniciar o pagamento: ${error.message || 'Tente novamente.'}`);
+        toast.error(`Erro ao iniciar pagamento: ${error.message || 'Tente novamente.'}`);
       }
     } finally {
       setProcessing(false);
     }
   };
 
-  // Don't show button if user doesn't need Pro subscription
-  if (!needsProSubscription) {
-    return null;
-  }
+  if (!needsProSubscription) return null;
 
   return (
     <Button
