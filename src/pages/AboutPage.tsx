@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card } from '../components/ui/Card';
-import { GraduationCap, Heart, Mail, Globe } from 'lucide-react';
+import { GraduationCap, Heart, Mail } from 'lucide-react';
 
 export const AboutPage: React.FC = () => {
   return (
@@ -46,44 +46,4 @@ export const AboutPage: React.FC = () => {
                   Adapte as avaliações ao seu estilo de ensino
                 </p>
               </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900">Gestão de Turmas</h4>
-                <p className="text-gray-600 mt-1">
-                  Organize seus alunos e turmas de forma eficiente
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Contato</h3>
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <Mail className="h-5 w-5 text-gray-400 mr-2" />
-                <a href="mailto:evalexpress@ainovita.com.br" className="text-primary-600 hover:text-primary-700">
-                  evalexpress@ainovita.com.br
-                </a>
-              </div>
-              <div className="flex items-center">
-                <Globe className="h-5 w-5 text-gray-400 mr-2" />
-                <a href="https://www.evalexpress.com" className="text-primary-600 hover:text-primary-700">
-                  www.evalexpress.com
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-200 pt-6 text-center">
-            <div className="flex items-center justify-center text-gray-500">
-              <Heart className="h-5 w-5 text-red-500 mr-2" />
-              <p>Feito com amor para educadores</p>
-            </div>
-            <p className="mt-2 text-sm text-gray-500">
-              © {new Date().getFullYear()} EvalExpress. Todos os direitos reservados.
-            </p>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-};
+              <div className="bg-gray-50 p-4
