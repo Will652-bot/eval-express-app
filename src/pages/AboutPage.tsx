@@ -46,4 +46,28 @@ export const AboutPage: React.FC = () => {
                   Adapte as avaliações ao seu estilo de ensino
                 </p>
               </div>
-              <div className="bg-gray-50 p-4
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900">Exportação e Anexos</h4>
+                <p className="text-gray-600 mt-1">
+                  Exporte relatórios em PDF/Excel e anexe arquivos às avaliações
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Contato</h3>
+            <div className="flex items-center space-x-3">
+              <Mail className="h-5 w-5 text-primary-500" />
+              <p className="text-gray-600">Entre em contato: suporte@evalexpress.com.br</p>
+            </div>
+            <div className="flex items-center space-x-3 mt-2">
+              <Heart className="h-5 w-5 text-red-500" />
+              <p className="text-gray-600">Desenvolvido com carinho no Brasil 🇧🇷</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
