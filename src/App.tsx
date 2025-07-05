@@ -47,10 +47,12 @@ const App: React.FC = () => {
           <Route path="/request-password-reset" element={<RequestPasswordResetPage />} />
           <Route path="/debug-auth" element={<DebugAuthPage />} />
           <Route path="/update-password" element={<UpdatePasswordPage />} />
-          
-          {/* Payment routes */}
+
+          {/* Stripe redirection routes */}
           <Route path="/payment-success" element={<PaymentSuccessPage />} />
           <Route path="/payment-cancel" element={<PaymentCancelPage />} />
+          <Route path="/sucesso" element={<PaymentSuccessPage />} />
+          <Route path="/cancelado" element={<PaymentCancelPage />} />
 
           {/* Protected routes */}
           <Route
@@ -70,15 +72,12 @@ const App: React.FC = () => {
             <Route path="students" element={<AllStudentsPage />} />
             <Route path="classes/:classId/students/new" element={<StudentFormPage />} />
             <Route path="classes/:classId/students/:id/edit" element={<StudentFormPage />} />
-            
-            {/* Planning section routes */}
             <Route path="criteria" element={<CriteriaPage />} />
             <Route path="criteria/new" element={<CriteriaFormPage />} />
             <Route path="criteria/:id/edit" element={<CriteriaFormPage />} />
             <Route path="evaluation-titles" element={<EvaluationTitlesPage />} />
             <Route path="evaluation-criteria" element={<EvaluationCriteriaPage />} />
             <Route path="formatting" element={<ConditionalFormattingPage />} />
-            
             <Route path="evaluations" element={<EvaluationsPage />} />
             <Route path="evaluations/new" element={<EvaluationFormPage />} />
             <Route path="evaluations/:id/edit" element={<EvaluationFormPage />} />
@@ -91,7 +90,7 @@ const App: React.FC = () => {
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
-        
+
         {/* Debug Panel - visible only in dev or for admin */}
         <SignupDebugPanel />
       </Router>
