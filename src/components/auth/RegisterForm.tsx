@@ -21,7 +21,6 @@ export const RegisterForm: React.FC = () => {
     const hasNumbers = /\d/.test(password);
     const hasSpecialChar = /[!@#$%^&*()_+]/.test(password);
     const isLongEnough = password.length >= 8;
-
     return hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar && isLongEnough;
   };
 
@@ -30,8 +29,7 @@ export const RegisterForm: React.FC = () => {
   };
 
   const getEmailRedirectUrl = () => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/verify`;
+    return `${window.location.origin}/verify`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,11 +54,7 @@ export const RegisterForm: React.FC = () => {
 
     try {
       const redirectUrl = getEmailRedirectUrl();
-
-      console.log('📝 [RegisterForm] Début inscription:', {
-        email: formData.email,
-        redirectTo: redirectUrl
-      });
+      sessionStorage.setItem('signup-email', formData.email);
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -74,27 +68,25 @@ export const RegisterForm: React.FC = () => {
         }
       });
 
-      console.log('📊 [RegisterForm] Réponse Supabase:', {
-        hasUser: !!authData.user,
-        hasSession: !!authData.session,
-        error: authError?.message || 'aucune'
+      console.log('📬 [RegisterForm] signUp →', {
+        email: formData.email,
+        error: authError?.message || 'none',
+        userId: authData.user?.id || 'none',
       });
 
-      sessionStorage.setItem('signup-email', formData.email);
-
       if (authError) {
-        console.warn('⚠️ [RegisterForm] Erreur signUp mais redirection quand même:', authError.message);
-
-        if (authError.message?.includes('already registered')) {
-          toast.error('Este email já está registrado. Redirecionando...');
+        if (authError.message?.includes('user already registered')) {
+          toast.error('Este email já está registrado. Verifique seu email.');
         } else if (authError.message?.includes('email_address_invalid')) {
-          toast.error('Email inválido. Verifique o endereço.');
+          toast.error('Email inválido.');
         } else if (authError.message?.includes('over_email_send_rate_limit')) {
-          toast.error('Limite de envio excedido. Aguarde antes de tentar novamente.');
+          toast.error('Limite de envio excedido. Tente mais tarde.');
         } else {
-          toast.error('Possível problema na criação. Verifique seu email para confirmação.');
+          toast.error('Erro durante o cadastro. Verifique seu email.');
         }
       } else {
+        toast.success('Conta criada! Verifique seu email para confirmação.');
+
         try {
           if (authData.user) {
             const { error: insertError } = await supabase
@@ -107,26 +99,21 @@ export const RegisterForm: React.FC = () => {
               });
 
             if (insertError && !insertError.message.includes('duplicate key')) {
-              console.warn('⚠️ [RegisterForm] Erreur insertion users:', insertError.message);
+              console.warn('⚠️ [RegisterForm] Erro ao inserir usuário:', insertError.message);
             } else {
-              console.log('✅ [RegisterForm] Utilisateur inséré dans public.users avec succès');
+              console.log('✅ [RegisterForm] Usuário inserido com sucesso na tabela users');
             }
           }
         } catch (insertErr: any) {
-          console.warn('⚠️ [RegisterForm] Exception insertion users:', insertErr.message);
+          console.error('⚠️ [RegisterForm] Exception ao inserir usuário:', insertErr.message);
         }
-
-        toast.success('Conta criada! Verifique seu email para confirmar.');
       }
 
       navigate('/check-email');
-
-    } catch (error: any) {
-      console.error('❌ [RegisterForm] Exception inscription:', error);
-      sessionStorage.setItem('signup-email', formData.email);
-      toast.error('Erro durante o cadastro. Verifique seu email para confirmação.');
+    } catch (err: any) {
+      console.error('❌ [RegisterForm] Exception signup:', err.message);
+      toast.error('Erro inesperado. Verifique seu email para continuar.');
       navigate('/check-email');
-
     } finally {
       setLoading(false);
     }
