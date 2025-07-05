@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, Mail, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Mail, RefreshCw, ArrowLeft } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { supabase } from '../lib/supabase';
@@ -15,15 +15,15 @@ export const CheckEmailPage: React.FC = () => {
   const [countdown, setCountdown] = useState(0);
 
   useEffect(() => {
-    // Récupérer l'email depuis sessionStorage
     const storedEmail = sessionStorage.getItem('signup-email');
     if (storedEmail) {
       setEmail(storedEmail);
+    } else {
+      toast.error('Email não encontrado. Faça o registro novamente.');
     }
   }, []);
 
   useEffect(() => {
-    // Countdown pour le bouton resend
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
@@ -47,36 +47,33 @@ export const CheckEmailPage: React.FC = () => {
     setCanResend(false);
 
     try {
-      console.log('📧 [CheckEmail] Renvoi email pour:', email);
-
       const { error } = await supabase.auth.resend({
         type: 'signup',
-        email: email,
+        email,
         options: {
-          emailRedirectTo: `${window.location.origin}/verify`
-        }
+          emailRedirectTo: `${window.location.origin}/verify`,
+        },
       });
 
       if (error) {
-        console.error('❌ [CheckEmail] Erreur renvoi:', error.message);
-        
+        console.warn('📧 [CheckEmail] Erro ao reenviar:', error.message);
+
         if (error.message.includes('over_email_send_rate_limit')) {
           toast.error('Limite de envio excedido. Aguarde alguns minutos.');
-          setCountdown(300); // 5 minutes
+          setCountdown(300); // 5 min
         } else {
           toast.error('Erro ao reenviar email. Tente novamente.');
-          setCountdown(60); // 1 minute
+          setCountdown(60);
         }
+
         return;
       }
 
-      console.log('✅ [CheckEmail] Email reenviado com sucesso');
-      setResendCount(prev => prev + 1);
-      setCountdown(60); // 1 minute entre les renvois
+      setResendCount((prev) => prev + 1);
+      setCountdown(60);
       toast.success(`Email de confirmação reenviado! (${resendCount + 1}ª tentativa)`);
-
     } catch (error: any) {
-      console.error('❌ [CheckEmail] Exception renvoi:', error);
+      console.error('❌ [CheckEmail] Exception:', error);
       toast.error('Erro inesperado ao reenviar email.');
       setCountdown(60);
     } finally {
@@ -98,7 +95,7 @@ export const CheckEmailPage: React.FC = () => {
             {email ? (
               <>Enviamos um link de confirmação para <strong>{email}</strong></>
             ) : (
-              'Um email de confirmação foi enviado'
+              'Um email de confirmação foi enviado.'
             )}
           </p>
         </div>
@@ -145,14 +142,13 @@ export const CheckEmailPage: React.FC = () => {
                 disabled={!canResend || resendLoading}
                 leftIcon={<RefreshCw className="h-4 w-4" />}
               >
-                {resendLoading 
-                  ? 'Reenviando...' 
-                  : !canResend 
-                    ? `Aguarde ${countdown}s` 
-                    : `Reenviar email${resendCount > 0 ? ` (${resendCount + 1}ª tentativa)` : ''}`
-                }
+                {resendLoading
+                  ? 'Reenviando...'
+                  : !canResend
+                    ? `Aguarde ${countdown}s`
+                    : `Reenviar email${resendCount > 0 ? ` (${resendCount + 1}ª tentativa)` : ''}`}
               </Button>
-              
+
               <Button
                 onClick={() => navigate('/login')}
                 variant="ghost"
@@ -163,12 +159,11 @@ export const CheckEmailPage: React.FC = () => {
               </Button>
             </div>
 
-            {/* Informações de debug em desenvolvimento */}
             {process.env.NODE_ENV === 'development' && (
               <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
                 <p>Debug: Email = {email || 'não encontrado'}</p>
                 <p>Redirect URL = {window.location.origin}/verify</p>
-                <p>Resend count: {resendCount}</p>
+                <p>Reenvios: {resendCount}</p>
               </div>
             )}
           </div>
