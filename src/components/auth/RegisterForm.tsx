@@ -29,16 +29,14 @@ export const RegisterForm: React.FC = () => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
 
-  // ✅ PHASE 2: Configuration correcte de la redirection email
   const getEmailRedirectUrl = () => {
     const baseUrl = window.location.origin;
     return `${baseUrl}/verify`;
   };
 
-  // ✅ PHASE 2: Flux d'enregistrement optimisé SANS latences artificielles
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateEmail(formData.email)) {
       toast.error('Por favor, insira um email válido');
       return;
@@ -58,13 +56,12 @@ export const RegisterForm: React.FC = () => {
 
     try {
       const redirectUrl = getEmailRedirectUrl();
-      
+
       console.log('📝 [RegisterForm] Début inscription:', {
-        email: formData.email, 
+        email: formData.email,
         redirectTo: redirectUrl
       });
 
-      // ✅ PHASE 2: Appel signUp IMMÉDIAT sans latence
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -83,17 +80,11 @@ export const RegisterForm: React.FC = () => {
         error: authError?.message || 'aucune'
       });
 
-      // ✅ PHASE 2: REDIRECTION SYSTÉMATIQUE vers check-email
-      // Même en cas d'erreur, car l'utilisateur a probablement été créé
-      console.log('🔄 [RegisterForm] Redirection vers check-email');
-      
-      // Stocker l'email pour la page check-email
       sessionStorage.setItem('signup-email', formData.email);
-      
+
       if (authError) {
         console.warn('⚠️ [RegisterForm] Erreur signUp mais redirection quand même:', authError.message);
-        
-        // Messages d'erreur spécifiques mais redirection quand même
+
         if (authError.message?.includes('already registered')) {
           toast.error('Este email já está registrado. Redirecionando...');
         } else if (authError.message?.includes('email_address_invalid')) {
@@ -104,7 +95,6 @@ export const RegisterForm: React.FC = () => {
           toast.error('Possível problema na criação. Verifique seu email para confirmação.');
         }
       } else {
-        // ✅ CORRECTION: Insérer dans la table users si pas d'erreur
         try {
           if (authData.user) {
             const { error: insertError } = await supabase
@@ -129,17 +119,14 @@ export const RegisterForm: React.FC = () => {
         toast.success('Conta criada! Verifique seu email para confirmar.');
       }
 
-      // ✅ REDIRECTION IMMÉDIATE dans tous les cas
       navigate('/check-email');
 
     } catch (error: any) {
       console.error('❌ [RegisterForm] Exception inscription:', error);
-      
-      // ✅ Même en cas d'exception, rediriger car l'utilisateur peut avoir été créé
       sessionStorage.setItem('signup-email', formData.email);
       toast.error('Erro durante o cadastro. Verifique seu email para confirmação.');
       navigate('/check-email');
-      
+
     } finally {
       setLoading(false);
     }
