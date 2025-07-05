@@ -226,7 +226,7 @@ export const PlansPage: React.FC = () => {
               </p>
               <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                 <Button variant="outline">
-                  <a href="mailto:support@evalexpress.com">
+                  <a href="mailto:evalexpress.app@gmail.com">
                     Contatar Suporte
                   </a>
                 </Button>
