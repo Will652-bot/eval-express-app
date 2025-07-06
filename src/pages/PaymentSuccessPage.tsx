@@ -1,78 +1,55 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const PaymentSuccessPage: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const { user, refreshUser } = useAuth();
+  const { user, refetchUser } = useAuth();
+  const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const sessionId = searchParams.get('session_id');
 
   useEffect(() => {
     const checkSubscriptionStatus = async () => {
-      if (!sessionId) {
-        navigate('/plans');
-        return;
+      let tries = 0;
+
+      while (tries < 5) {
+        await refetchUser();
+
+        if (user?.pro_subscription_active) {
+          toast.success('✅ Pagamento confirmado com sucesso!');
+          setChecking(false);
+          return navigate('/');
+        }
+
+        tries++;
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      console.log('🔄 Vérification du statut de l’abonnement Stripe');
-
-      // Forcer le rechargement des infos utilisateur Supabase
-      const { error: refreshError } = await refreshUser();
-
-      if (refreshError) {
-        console.error('❌ Erreur lors du rafraîchissement de l’utilisateur :', refreshError);
-        navigate('/plans');
-        return;
-      }
-
-      // Attendre une courte latence pour garantir la propagation des updates webhook
-      await new Promise((resolve) => setTimeout(resolve, 4000));
-
-      // Recharger le user après propagation
-      const { data: refreshedUser, error: userError } = await supabase
-        .from('users')
-        .select('subscription_expires_at')
-        .eq('id', user?.id)
-        .single();
-
-      if (userError || !refreshedUser) {
-        console.error('❌ Impossible de récupérer les infos utilisateur :', userError);
-        navigate('/plans');
-        return;
-      }
-
-      const expiresAt = refreshedUser.subscription_expires_at
-        ? new Date(refreshedUser.subscription_expires_at)
-        : null;
-
-      const now = new Date();
-
-      if (!expiresAt || expiresAt < now) {
-        console.warn('⏳ Abonnement toujours inactif...');
-        navigate('/plans');
-      } else {
-        console.log('✅ Abonnement actif jusqu’au :', expiresAt.toISOString());
-        navigate('/dashboard');
-      }
+      setChecking(false);
+      toast.error('❌ Pagamento não foi confirmado. Tente novamente mais tarde.');
+      navigate('/cancelado');
     };
 
     checkSubscriptionStatus();
-  }, [sessionId, user?.id, navigate, refreshUser]);
+  }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
-      <h1 className="text-2xl font-bold mb-2">Processando Pagamento</h1>
-      <p className="text-lg text-muted-foreground mb-6">EvalExpress - Plano Pro</p>
-      <div className="flex flex-col items-center bg-blue-100 p-6 rounded-lg shadow-lg">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-        <p className="text-blue-700 font-semibold text-lg">Verificando pagamento...</p>
-        <p className="text-sm text-blue-800 mt-2">
-          Aguarde enquanto confirmamos seu pagamento...
-        </p>
+    <div className="flex flex-col items-center justify-center h-screen text-center px-4">
+      <h1 className="text-2xl font-bold mb-4">Processando Pagamento</h1>
+      <p className="mb-2 text-gray-600">EvalExpress – Plano Pro</p>
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-6 py-8 shadow-md mt-4 max-w-md w-full">
+        {checking ? (
+          <>
+            <Loader2 className="w-12 h-12 animate-spin mx-auto text-blue-600" />
+            <p className="text-lg font-semibold mt-4 text-blue-700">Verificando pagamento...</p>
+            <p className="text-sm text-gray-600 mt-2">
+              Aguarde enquanto confirmamos seu pagamento...
+            </p>
+          </>
+        ) : (
+          <p className="text-red-500">Erro ao confirmar pagamento. Retornando...</p>
+        )}
       </div>
     </div>
   );
