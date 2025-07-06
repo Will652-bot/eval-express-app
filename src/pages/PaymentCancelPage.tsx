@@ -1,10 +1,7 @@
-// src/pages/PaymentCancelPage.tsx
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { XCircle, ArrowLeft, CreditCard, Home, HelpCircle } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
 
 export const PaymentCancelPage: React.FC = () => {
   return (
@@ -13,31 +10,22 @@ export const PaymentCancelPage: React.FC = () => {
         
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Pagamento Cancelado
-          </h1>
-          <p className="text-gray-600">
-            EvalExpress – Plano Pro
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Pagamento Cancelado</h1>
+          <p className="text-gray-600">EvalExpress - Plano Pro</p>
         </div>
 
-        {/* Status Card */}
-        <Card className="p-8 bg-orange-50 border-orange-200">
+        {/* Main Card */}
+        <Card className="bg-orange-50 border border-orange-200 p-8">
           <div className="text-center">
             <XCircle className="h-16 w-16 text-orange-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold text-orange-700 mb-4">
-              Processo de Pagamento Cancelado
-            </h2>
+            <h2 className="text-xl font-semibold text-orange-700 mb-4">Processo de Pagamento Cancelado</h2>
             <p className="text-base text-orange-700 mb-6">
               Seu pagamento não foi processado. Nenhum valor foi cobrado.
             </p>
 
-            {/* Explicações */}
-            <div className="bg-white border border-orange-300 rounded-lg p-4 mb-6 text-left">
-              <h3 className="font-medium text-orange-800 mb-2">
-                O que aconteceu?
-              </h3>
-              <ul className="list-disc list-inside space-y-1 text-sm text-orange-700">
+            <div className="bg-white rounded-lg p-4 mb-6 border border-orange-300 text-left">
+              <h3 className="font-medium text-orange-800 mb-2">O que aconteceu?</h3>
+              <ul className="text-sm text-orange-700 list-disc list-inside space-y-1">
                 <li>Você cancelou o processo de pagamento</li>
                 <li>Nenhuma transação foi processada</li>
                 <li>Sua conta permanece inalterada</li>
@@ -45,12 +33,9 @@ export const PaymentCancelPage: React.FC = () => {
               </ul>
             </div>
 
-            {/* Rappel fonctionnalités Pro */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-              <h3 className="font-medium text-blue-800 mb-2">
-                Lembrete: O Plano Pro oferece
-              </h3>
-              <ul className="list-disc list-inside space-y-1 text-sm text-blue-700">
+            <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200 text-left">
+              <h3 className="font-medium text-blue-800 mb-2">Lembrete: O Plano Pro oferece</h3>
+              <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
                 <li>✨ Alunos ilimitados</li>
                 <li>✨ Exportação em PDF e Excel</li>
                 <li>✨ Anexos PDF às avaliações</li>
@@ -61,14 +46,14 @@ export const PaymentCancelPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Boutons d’action */}
+        {/* Action Buttons */}
         <div className="space-y-3">
           <Link
             to="/plans"
-            className="w-full flex items-center justify-center px-6 py-3 text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition"
+            className="w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition"
           >
             <CreditCard className="h-5 w-5 mr-2" />
-            Ver Planos
+            Voltar aos Planos
           </Link>
 
           <Link
@@ -88,8 +73,8 @@ export const PaymentCancelPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* Support */}
-        <Card className="p-4 bg-gray-100">
+        {/* Help */}
+        <Card className="bg-gray-100 p-4">
           <div className="flex items-center justify-center text-gray-600 mb-2">
             <HelpCircle className="h-5 w-5 mr-2" />
             <span className="font-medium">Precisa de ajuda?</span>
@@ -105,13 +90,13 @@ export const PaymentCancelPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Stripe Info */}
+        {/* Stripe Security Note */}
         <div className="text-center text-xs text-gray-500 bg-gray-100 p-3 rounded">
           <p className="mb-1">🔒 Pagamentos seguros via Stripe</p>
           <p>Suas informações de pagamento são protegidas e nunca armazenadas em nossos servidores.</p>
         </div>
 
-        {/* Debug */}
+        {/* Debug Info */}
         {process.env.NODE_ENV === 'development' && (
           <div className="text-xs text-gray-400 bg-gray-100 p-2 rounded">
             <p>Debug Info:</p>
