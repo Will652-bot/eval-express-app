@@ -1,69 +1,88 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { Loader } from '../components/ui/Loader';
-import { CheckCircle } from 'lucide-react';
+// src/pages/PaymentSuccessPage.tsx
+import React, { useEffect, useState } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card } from "@/components/ui/card";
+import { CheckCircle2 } from "lucide-react";
 
 const PaymentSuccessPage: React.FC = () => {
-  const { user, refreshUser } = useAuth();
-  const navigate = useNavigate();
-  const [confirmed, setConfirmed] = useState(false);
+  const { user, fetchUserProfile } = useAuth();
+  const [isVerified, setIsVerified] = useState(false);
   const [attempts, setAttempts] = useState(0);
-  const maxAttempts = 5;
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const sessionId = searchParams.get("session_id");
 
   useEffect(() => {
-    const checkSubscriptionStatus = async () => {
-      if (!user) return;
+    if (!sessionId || !user) return;
 
-      await refreshUser();
-      const updatedUser = await refreshUser(); // refetch again
-
-      if (updatedUser?.pro_subscription_active) {
-        setConfirmed(true);
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 2000);
-      }
-    };
-
-    const intervalId = setInterval(() => {
-      if (attempts >= maxAttempts) {
-        clearInterval(intervalId);
-        console.warn('⏱️ Limite de tentatives atteinte');
+    const interval = setInterval(async () => {
+      if (attempts >= 5) {
+        clearInterval(interval);
+        navigate("/");
         return;
       }
+
       setAttempts((prev) => prev + 1);
-      checkSubscriptionStatus();
+
+      const { data, error } = await supabase
+        .from("users")
+        .select("pro_subscription_active, subscription_expires_at")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("❌ Erreur Supabase :", error.message);
+        return;
+      }
+
+      const now = new Date();
+      const expires = data?.subscription_expires_at
+        ? new Date(data.subscription_expires_at)
+        : null;
+
+      const active = data?.pro_subscription_active && expires && expires > now;
+
+      if (active) {
+        setIsVerified(true);
+        await fetchUserProfile(); // met à jour l'état global utilisateur
+        clearInterval(interval);
+        setTimeout(() => navigate("/"), 2000);
+      }
     }, 2000);
 
-    return () => clearInterval(intervalId);
-  }, [user, attempts, navigate, refreshUser]);
+    return () => clearInterval(interval);
+  }, [sessionId, user, attempts, fetchUserProfile, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-green-50 text-green-900 p-4 text-center">
-      {confirmed ? (
-        <>
-          <CheckCircle className="w-20 h-20 text-green-600 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Pagamento confirmado!</h1>
-          <p className="text-md">Sua assinatura Pro foi ativada. Redirecionando...</p>
-        </>
-      ) : attempts >= maxAttempts ? (
-        <>
-          <h1 className="text-xl font-bold text-red-600 mb-2">Estamos processando...</h1>
-          <p className="text-sm mb-4">O pagamento foi realizado, mas não conseguimos confirmar a ativação da sua conta Pro. Tente novamente mais tarde.</p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-          >
-            Ir para o Dashboard
-          </button>
-        </>
-      ) : (
-        <>
-          <Loader />
-          <p className="text-md mt-4">Confirmando o pagamento...</p>
-        </>
-      )}
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+      <h1 className="text-2xl font-bold mb-4">Processando Pagamento</h1>
+      <p className="text-muted-foreground mb-6">EvalExpress – Plano Pro</p>
+      <Card className="p-6 max-w-md w-full">
+        {isVerified ? (
+          <>
+            <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
+            <p className="text-lg font-semibold text-green-600">
+              Pagamento confirmado!
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Redirecionando para o aplicativo...
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-center items-center mb-4">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
+            </div>
+            <p className="text-blue-600 font-medium">Verificando pagamento...</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Aguarde enquanto confirmamos seu pagamento...
+            </p>
+          </>
+        )}
+      </Card>
     </div>
   );
 };
