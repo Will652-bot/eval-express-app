@@ -17,12 +17,12 @@ export const PaymentCancelPage: React.FC = () => {
             Pagamento Cancelado
           </h1>
           <p className="text-gray-600">
-            EvalExpress - Plano Pro
+            EvalExpress – Plano Pro
           </p>
         </div>
 
-        {/* Main Card */}
-        <Card className="bg-orange-50 border-orange-200 p-8">
+        {/* Status Card */}
+        <Card className="p-8 bg-orange-50 border-orange-200">
           <div className="text-center">
             <XCircle className="h-16 w-16 text-orange-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-orange-700 mb-4">
@@ -32,12 +32,12 @@ export const PaymentCancelPage: React.FC = () => {
               Seu pagamento não foi processado. Nenhum valor foi cobrado.
             </p>
 
-            {/* Additional Info */}
-            <div className="bg-white rounded-lg p-4 mb-6 border border-orange-300 text-left">
+            {/* Explicações */}
+            <div className="bg-white border border-orange-300 rounded-lg p-4 mb-6 text-left">
               <h3 className="font-medium text-orange-800 mb-2">
                 O que aconteceu?
               </h3>
-              <ul className="text-sm text-orange-700 list-disc list-inside space-y-1">
+              <ul className="list-disc list-inside space-y-1 text-sm text-orange-700">
                 <li>Você cancelou o processo de pagamento</li>
                 <li>Nenhuma transação foi processada</li>
                 <li>Sua conta permanece inalterada</li>
@@ -45,12 +45,12 @@ export const PaymentCancelPage: React.FC = () => {
               </ul>
             </div>
 
-            {/* Reminder */}
-            <div className="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-200 text-left">
+            {/* Rappel fonctionnalités Pro */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
               <h3 className="font-medium text-blue-800 mb-2">
                 Lembrete: O Plano Pro oferece
               </h3>
-              <ul className="text-sm text-blue-700 list-disc list-inside space-y-1">
+              <ul className="list-disc list-inside space-y-1 text-sm text-blue-700">
                 <li>✨ Alunos ilimitados</li>
                 <li>✨ Exportação em PDF e Excel</li>
                 <li>✨ Anexos PDF às avaliações</li>
@@ -61,14 +61,14 @@ export const PaymentCancelPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Action Buttons */}
+        {/* Boutons d’action */}
         <div className="space-y-3">
           <Link
             to="/plans"
-            className="w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition"
+            className="w-full flex items-center justify-center px-6 py-3 text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 transition"
           >
             <CreditCard className="h-5 w-5 mr-2" />
-            Voltar aos Planos
+            Ver Planos
           </Link>
 
           <Link
@@ -88,16 +88,16 @@ export const PaymentCancelPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* Help */}
-        <Card className="bg-gray-100 p-4">
+        {/* Support */}
+        <Card className="p-4 bg-gray-100">
           <div className="flex items-center justify-center text-gray-600 mb-2">
             <HelpCircle className="h-5 w-5 mr-2" />
             <span className="font-medium">Precisa de ajuda?</span>
           </div>
           <div className="text-center text-sm text-gray-600 space-y-1">
             <p>Dúvidas sobre nossos planos ou processo de pagamento?</p>
-            <a 
-              href="mailto:support@evalexpress.com" 
+            <a
+              href="mailto:support@evalexpress.com"
               className="text-primary-600 hover:text-primary-700 font-medium"
             >
               Entre em contato com nosso suporte
@@ -105,13 +105,13 @@ export const PaymentCancelPage: React.FC = () => {
           </div>
         </Card>
 
-        {/* Stripe Security Note */}
+        {/* Stripe Info */}
         <div className="text-center text-xs text-gray-500 bg-gray-100 p-3 rounded">
           <p className="mb-1">🔒 Pagamentos seguros via Stripe</p>
           <p>Suas informações de pagamento são protegidas e nunca armazenadas em nossos servidores.</p>
         </div>
 
-        {/* Debug (only dev) */}
+        {/* Debug */}
         {process.env.NODE_ENV === 'development' && (
           <div className="text-xs text-gray-400 bg-gray-100 p-2 rounded">
             <p>Debug Info:</p>
