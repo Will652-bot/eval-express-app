@@ -1,88 +1,74 @@
-// src/pages/PaymentSuccessPage.tsx
 import React, { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
-import { Card } from "@/components/ui/card";
-import { CheckCircle2 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { useUser } from "../../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { Loader } from "../../components/ui/Loader";
 
-const PaymentSuccessPage: React.FC = () => {
-  const { user, fetchUserProfile } = useAuth();
-  const [isVerified, setIsVerified] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [searchParams] = useSearchParams();
+const PaymentSuccessPage = () => {
+  const { user } = useUser();
   const navigate = useNavigate();
-
-  const sessionId = searchParams.get("session_id");
+  const [status, setStatus] = useState<"checking" | "success" | "failed">("checking");
+  const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
-    if (!sessionId || !user) return;
+    if (!user?.id) return;
 
-    const interval = setInterval(async () => {
-      if (attempts >= 5) {
-        clearInterval(interval);
-        navigate("/");
-        return;
+    const checkSubscriptionStatus = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("pro_subscription_active, subscription_expires_at")
+          .eq("id", user.id)
+          .single();
+
+        if (error) throw error;
+
+        const isActive = data?.pro_subscription_active;
+        const isValidDate = data?.subscription_expires_at
+          ? new Date(data.subscription_expires_at) > new Date()
+          : false;
+
+        if (isActive && isValidDate) {
+          setStatus("success");
+          setTimeout(() => navigate("/dashboard"), 2000);
+        } else {
+          if (attempts < 5) {
+            setAttempts((prev) => prev + 1);
+            setTimeout(checkSubscriptionStatus, 2000);
+          } else {
+            setStatus("failed");
+          }
+        }
+      } catch (err) {
+        console.error("Erreur lors de la vérification d’abonnement :", err);
+        setStatus("failed");
       }
+    };
 
-      setAttempts((prev) => prev + 1);
-
-      const { data, error } = await supabase
-        .from("users")
-        .select("pro_subscription_active, subscription_expires_at")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error("❌ Erreur Supabase :", error.message);
-        return;
-      }
-
-      const now = new Date();
-      const expires = data?.subscription_expires_at
-        ? new Date(data.subscription_expires_at)
-        : null;
-
-      const active = data?.pro_subscription_active && expires && expires > now;
-
-      if (active) {
-        setIsVerified(true);
-        await fetchUserProfile(); // met à jour l'état global utilisateur
-        clearInterval(interval);
-        setTimeout(() => navigate("/"), 2000);
-      }
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [sessionId, user, attempts, fetchUserProfile, navigate]);
+    checkSubscriptionStatus();
+  }, [user, attempts, navigate]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-      <h1 className="text-2xl font-bold mb-4">Processando Pagamento</h1>
-      <p className="text-muted-foreground mb-6">EvalExpress – Plano Pro</p>
-      <Card className="p-6 max-w-md w-full">
-        {isVerified ? (
-          <>
-            <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
-            <p className="text-lg font-semibold text-green-600">
-              Pagamento confirmado!
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Redirecionando para o aplicativo...
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="flex justify-center items-center mb-4">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
-            </div>
-            <p className="text-blue-600 font-medium">Verificando pagamento...</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Aguarde enquanto confirmamos seu pagamento...
-            </p>
-          </>
-        )}
-      </Card>
+      {status === "checking" && (
+        <>
+          <Loader className="w-10 h-10 mb-4" />
+          <p className="text-lg font-semibold">Confirmando sua assinatura...</p>
+          <p className="text-sm text-muted-foreground">Isso pode levar alguns segundos.</p>
+        </>
+      )}
+      {status === "success" && (
+        <>
+          <p className="text-lg font-semibold text-green-600">Assinatura confirmada com sucesso!</p>
+          <p className="text-sm">Você será redirecionado em instantes...</p>
+        </>
+      )}
+      {status === "failed" && (
+        <>
+          <p className="text-lg font-semibold text-red-600">Não foi possível confirmar sua assinatura.</p>
+          <p className="text-sm">Por favor, entre em contato com o suporte.</p>
+        </>
+      )}
     </div>
   );
 };
