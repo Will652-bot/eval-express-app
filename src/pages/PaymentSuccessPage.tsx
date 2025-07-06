@@ -1,5 +1,3 @@
-// src/pages/PaymentSuccessPage.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle, Crown, ArrowLeft, Home } from 'lucide-react';
@@ -23,7 +21,6 @@ export const PaymentSuccessPage: React.FC = () => {
 
     const timer = setTimeout(() => {
       if (sessionId) {
-        setStatus('success');
         checkSubscriptionStatus();
       } else {
         setStatus('error');
@@ -55,12 +52,14 @@ export const PaymentSuccessPage: React.FC = () => {
 
         if (data?.pro_subscription_active === true || data?.current_plan === 'pro') {
           setSubscriptionStatus('active');
+          setStatus('success'); // ✅ succès réel
         } else {
           attempts++;
           if (attempts < maxAttempts) {
             setTimeout(checkStatus, 5000);
           } else {
             setSubscriptionStatus('pending');
+            setStatus('success'); // ✅ paiement validé mais plan pas encore activé
           }
         }
       } catch (error) {
@@ -70,6 +69,7 @@ export const PaymentSuccessPage: React.FC = () => {
           setTimeout(checkStatus, 5000);
         } else {
           setSubscriptionStatus('pending');
+          setStatus('error'); // ❌ échec après 12 tentatives
         }
       }
     };
