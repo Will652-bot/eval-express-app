@@ -37,6 +37,7 @@ const App: React.FC = () => {
     <AuthProvider>
       <Router>
         <Routes>
+
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -48,10 +49,10 @@ const App: React.FC = () => {
           <Route path="/debug-auth" element={<DebugAuthPage />} />
           <Route path="/update-password" element={<UpdatePasswordPage />} />
 
-          {/* Stripe redirection routes */}
+          {/* Stripe redirection routes – portugais et anglais */}
           <Route path="/payment-success" element={<PaymentSuccessPage />} />
-          <Route path="/payment-cancel" element={<PaymentCancelPage />} />
           <Route path="/sucesso" element={<PaymentSuccessPage />} />
+          <Route path="/payment-cancel" element={<PaymentCancelPage />} />
           <Route path="/cancelado" element={<PaymentCancelPage />} />
 
           {/* Protected routes */}
