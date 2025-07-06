@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../contexts/AuthContext";
-import { supabase } from "../../lib/supabase";
-import Loader from "../../components/ui/Loader";
+import { useAuth } from "../contexts/AuthContext"; // ✅ Chemin corrigé
+import { supabase } from "../lib/supabase";         // ✅ Chemin corrigé
+import Loader from "../components/ui/Loader";       // ✅ Chemin corrigé
 
 const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ const PaymentSuccessPage: React.FC = () => {
       const now = new Date();
 
       if (expiresAt && expiresAt > now) {
-        refreshSession(); // Met à jour le contexte utilisateur
+        refreshSession(); // ✅ Forcer actualisation du contexte utilisateur
         setStatus("success");
         setTimeout(() => {
           navigate("/dashboard");
