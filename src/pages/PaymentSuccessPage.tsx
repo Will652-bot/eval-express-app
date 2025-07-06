@@ -1,72 +1,93 @@
 import React, { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
-import { useUser } from "../../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { Loader } from "../../components/ui/Loader";
+import { useAuth } from "../../contexts/AuthContext";
+import { supabase } from "../../lib/supabase";
+import Loader from "../../components/ui/Loader";
 
-const PaymentSuccessPage = () => {
-  const { user } = useUser();
+const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
-  const [status, setStatus] = useState<"checking" | "success" | "failed">("checking");
+  const { user, refreshSession } = useAuth();
+  const [status, setStatus] = useState<"checking" | "success" | "error">("checking");
   const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user) {
+      setStatus("error");
+      return;
+    }
 
-    const checkSubscriptionStatus = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("pro_subscription_active, subscription_expires_at")
-          .eq("id", user.id)
-          .single();
+    const checkSubscription = async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("subscription_expires_at")
+        .eq("id", user.id)
+        .single();
 
-        if (error) throw error;
+      if (error) {
+        console.error("Erreur lors de la vérification de la souscription :", error.message);
+        setStatus("error");
+        return;
+      }
 
-        const isActive = data?.pro_subscription_active;
-        const isValidDate = data?.subscription_expires_at
-          ? new Date(data.subscription_expires_at) > new Date()
-          : false;
+      const expiresAt = data?.subscription_expires_at
+        ? new Date(data.subscription_expires_at)
+        : null;
 
-        if (isActive && isValidDate) {
-          setStatus("success");
-          setTimeout(() => navigate("/dashboard"), 2000);
-        } else {
-          if (attempts < 5) {
+      const now = new Date();
+
+      if (expiresAt && expiresAt > now) {
+        refreshSession(); // Met à jour le contexte utilisateur
+        setStatus("success");
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 2000);
+      } else {
+        if (attempts < 5) {
+          setTimeout(() => {
             setAttempts((prev) => prev + 1);
-            setTimeout(checkSubscriptionStatus, 2000);
-          } else {
-            setStatus("failed");
-          }
+            checkSubscription();
+          }, 2000);
+        } else {
+          setStatus("error");
         }
-      } catch (err) {
-        console.error("Erreur lors de la vérification d’abonnement :", err);
-        setStatus("failed");
       }
     };
 
-    checkSubscriptionStatus();
-  }, [user, attempts, navigate]);
+    checkSubscription();
+  }, [user, attempts]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+    <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
       {status === "checking" && (
         <>
-          <Loader className="w-10 h-10 mb-4" />
-          <p className="text-lg font-semibold">Confirmando sua assinatura...</p>
-          <p className="text-sm text-muted-foreground">Isso pode levar alguns segundos.</p>
+          <h1 className="text-2xl font-bold mb-4">Processando Pagamento</h1>
+          <p className="text-lg mb-2">Verificando pagamento...</p>
+          <Loader />
+          <p className="text-sm mt-2 text-gray-600">
+            Aguarde enquanto confirmamos seu pagamento...
+          </p>
         </>
       )}
+
       {status === "success" && (
         <>
-          <p className="text-lg font-semibold text-green-600">Assinatura confirmada com sucesso!</p>
-          <p className="text-sm">Você será redirecionado em instantes...</p>
+          <h1 className="text-2xl font-bold text-green-600 mb-2">Pagamento Confirmado!</h1>
+          <p className="text-gray-700">Redirecionando para seu painel...</p>
         </>
       )}
-      {status === "failed" && (
+
+      {status === "error" && (
         <>
-          <p className="text-lg font-semibold text-red-600">Não foi possível confirmar sua assinatura.</p>
-          <p className="text-sm">Por favor, entre em contato com o suporte.</p>
+          <h1 className="text-2xl font-bold text-red-600 mb-2">Erro ao verificar pagamento</h1>
+          <p className="text-gray-700">
+            Não foi possível confirmar sua assinatura. Por favor, entre em contato com o suporte.
+          </p>
+          <button
+            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
+            onClick={() => navigate("/planos")}
+          >
+            Tentar novamente
+          </button>
         </>
       )}
     </div>
