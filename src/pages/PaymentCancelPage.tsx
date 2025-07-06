@@ -1,21 +1,22 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { XCircle } from 'lucide-react';
+// src/pages/PaymentCancelPage.tsx
+// Ce fichier a été neutralisé pour résoudre d'éventuelles erreurs de build/UX.
+// La redirection post-annulation Stripe se fait maintenant directement vers /plans ou /dashboard.
 
-const PaymentCancelPage: React.FC = () => {
-  const navigate = useNavigate();
+import React from 'react'; // Garder l'import de React est crucial pour un composant TSX
+
+/**
+ * Composant de page d'annulation de paiement temporairement neutralisé.
+ * Les utilisateurs ne devraient plus atterrir ici après une annulation.
+ */
+const PaymentCancelPage = () => {
+  // Optionnel: logguer un message si cette page est accidentellement visitée
+  console.warn("La page PaymentCancelPage a été accédée, mais elle est désactivée. Redirection prévue vers la page des plans/dashboard.");
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-red-50 text-red-900 p-4 text-center">
-      <XCircle className="w-20 h-20 text-red-600 mb-4" />
-      <h1 className="text-2xl font-bold mb-2">Pagamento cancelado</h1>
-      <p className="text-md mb-4">Você cancelou o processo de pagamento. Nenhuma cobrança foi efetuada.</p>
-      <button
-        onClick={() => navigate('/plans')}
-        className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-      >
-        Voltar aos Planos
-      </button>
+    <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+      <h1>Annulation...</h1>
+      <p>L'opération a été annulée. Vous êtes redirigé(e) vers la page appropriée.</p>
+      <p>Si la page ne se charge pas, veuillez <a href="/plans">cliquer ici pour voir nos plans</a> ou <a href="/dashboard">cliquer ici pour le tableau de bord</a>.</p>
     </div>
   );
 };
