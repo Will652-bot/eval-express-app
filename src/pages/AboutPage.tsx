@@ -59,7 +59,7 @@ export const AboutPage: React.FC = () => {
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Contato</h3>
             <div className="flex items-center space-x-3">
               <Mail className="h-5 w-5 text-primary-500" />
-              <p className="text-gray-600">Entre em contato: suporte@evalexpress.com.br</p>
+              <p className="text-gray-600">Entre em contato: evalexpress.app@gmail.com</p>
             </div>
             <div className="flex items-center space-x-3 mt-2">
               <Heart className="h-5 w-5 text-red-500" />
