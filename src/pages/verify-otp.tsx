@@ -1,13 +1,14 @@
 // src/pages/verify-otp.tsx
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router'; // Se você usa Next.js para navegação
-// Se você usa React Router, use: import { useNavigate, useLocation } from 'react-router-dom';
+// import { useRouter } from 'next/router'; // Se você usa Next.js para navegação
+import { useNavigate, useLocation } from 'react-router-dom'; // Se você usa React Router, use: import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient'; // Verifique se o caminho está correto
 
 const VerifyOtpPage = () => {
-  const router = useRouter(); // Para Next.js
-  // Para React Router, use: const navigate = useNavigate(); const location = useLocation();
+  // const router = useRouter(); // Para Next.js
+  const navigate = useNavigate(); // Para React Router
+  const location = useLocation(); // Para React Router
 
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -15,10 +16,11 @@ const VerifyOtpPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   // 'email' para cadastro, 'recovery' para redefinição de senha. Padrão para 'email'.
-  const [otpType, setOtpType] = useState<'email' | 'recovery'>('email');
+  const [otpType, setOtpType] = useState<'email' | 'recovery'>('email'); 
 
   useEffect(() => {
-    // Lógica para Next.js:
+    // Lógica para Next.js (comentada):
+    /*
     if (router.query.email) {
       setEmail(router.query.email as string);
     }
@@ -27,9 +29,9 @@ const VerifyOtpPage = () => {
     } else {
       setOtpType('email'); // Garante que o tipo seja 'email' se não especificado ou incorreto
     }
+    */
 
     // --- Se você usa React Router, substitua o bloco acima por este: ---
-    /*
     const params = new URLSearchParams(location.search);
     const emailParam = params.get('email');
     const typeParam = params.get('type');
@@ -42,11 +44,10 @@ const VerifyOtpPage = () => {
     } else {
         setOtpType('email');
     }
-    */
     // ------------------------------------------------------------------
 
-  }, [router.query.email, router.query.type]); // Para Next.js
-  // Para React Router, use: }, [location.search]);
+  }, [location.search]); // Para React Router (dependência de location.search)
+  // Para Next.js, use: }, [router.query.email, router.query.type]);
 
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
@@ -72,8 +73,8 @@ const VerifyOtpPage = () => {
     } else if (data.user) {
       setMessage('Código verificado com sucesso! Conectando...');
       // Redirecionar o usuário para o painel
-      router.push('/dashboard'); // Para Next.js
-      // Para React Router, use: navigate('/dashboard');
+      // router.push('/dashboard'); // Para Next.js
+      navigate('/dashboard'); // Para React Router
     } else {
         setError("Código inválido ou expirado. Por favor, tente novamente.");
     }
@@ -119,8 +120,7 @@ const VerifyOtpPage = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Seu e-mail"
                 required
-                disabled={loading || !!router.query.email} // Desativar se o e-mail estiver pré-preenchido ou carregando
-                // Para React Router, use: disabled={loading || !!new URLSearchParams(location.search).get('email')}
+                disabled={loading || !!new URLSearchParams(location.search).get('email')} // Para React Router
                 style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
             />
         </div>
