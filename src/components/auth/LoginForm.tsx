@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom'; // Importe useNavigate
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase'; // Verifique se o caminho está correto
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 export const LoginForm: React.FC = () => {
   const { signIn } = useAuth();
+  const navigate = useNavigate(); // Inicialize useNavigate
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string>('');
   const [formData, setFormData] = useState({
@@ -29,15 +30,20 @@ export const LoginForm: React.FC = () => {
         console.warn('❌ [LoginForm] Erro ao fazer login:', error.message);
 
         if (error.message.includes('Invalid login credentials')) {
-          setLoginError('Email ou senha incorretos. Verifique seus dados.');
+          setLoginError('E-mail ou senha incorretos. Verifique seus dados.');
         } else if (error.message.includes('Email not confirmed') || error.message.includes('Email not confirmed')) {
-          setLoginError('Você precisa verificar seu e-mail antes de continuar.');
+          // Se o e-mail não estiver confirmado, redirecionar para a página de verificação OTP
+          setLoginError('Seu e-mail ainda não foi verificado. Redirecionando para a página de verificação...');
+          // Opcional: reenviar OTP automaticamente aqui se desejar, mas o verify-otp tem a opção
+          await supabase.auth.signInWithOtp({ email: formData.email }); // Reenvia o OTP
+          navigate(`/verify-otp?email=${encodeURIComponent(formData.email)}&type=email`);
+          return; // Retorna para não mostrar o toast de erro genérico
         } else if (error.message.includes('Too many requests')) {
-          setLoginError('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+          setLoginError('Muitas tentativas. Por favor, aguarde alguns minutos e tente novamente.');
         } else if (error.message.includes('User not found')) {
-          setLoginError('Usuário não encontrado. Verifique seu email ou crie uma conta.');
+          setLoginError('Usuário não encontrado. Verifique seu e-mail ou crie uma conta.');
         } else {
-          setLoginError('Erro ao fazer login. Tente novamente.');
+          setLoginError('Erro ao fazer login. Por favor, tente novamente.');
         }
         return;
       }
@@ -47,48 +53,22 @@ export const LoginForm: React.FC = () => {
       console.log('✅ [LoginForm] Login bem-sucedido - redirecionamento via AuthContext');
 
     } catch (err: any) {
-      console.error('❌ [LoginForm] Exception:', err.message);
-      setLoginError('Erro inesperado ao fazer login. Tente novamente.');
+      console.error('❌ [LoginForm] Exceção:', err.message);
+      setLoginError('Erro inesperado ao fazer login. Por favor, tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendVerification = async () => {
-    if (!formData.email) {
-      toast.error('Digite seu email primeiro');
-      return;
-    }
-
-    try {
-      console.log('📧 [LoginForm] Reenviando verificação para:', formData.email);
-
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: formData.email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/verify`,
-        },
-      });
-
-      if (error) {
-        console.error('❌ [LoginForm] Erro ao reenviar email de verificação:', error.message);
-        toast.error('Erro ao reenviar email de verificação');
-        return;
-      }
-
-      toast.success('Email de verificação reenviado com sucesso!');
-    } catch (err: any) {
-      console.error('❌ [LoginForm] Exception reenviando verificação:', err.message);
-      toast.error('Erro inesperado ao reenviar email.');
-    }
-  };
+  // REMOVIDO: handleResendVerification não é mais necessário com o fluxo OTP
+  // porque o reenviar código está na página /verify-otp
+  // const handleResendVerification = async () => { ... };
 
   return (
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-6">
         <Input
-          label="Email"
+          label="E-mail"
           type="email"
           value={formData.email}
           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -134,25 +114,21 @@ export const LoginForm: React.FC = () => {
         </Button>
       </form>
 
+      {/* Seção de ajuda atualizada para o fluxo OTP */}
       <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 className="text-sm font-medium text-blue-800 mb-2">
           Problemas para fazer login?
         </h3>
         <ul className="text-xs text-blue-700 space-y-1">
-          <li>• Verifique se o email e senha estão corretos</li>
-          <li>• Confirme seu email se ainda não o fez (verifique spam/lixo eletrônico)</li>
-          <li>• Use "Esqueceu sua senha?" se não lembrar da senha</li>
-          <li>• Certifique-se de ter uma conta registrada</li>
+          <li>• Verifique se o e-mail e a senha estão corretos.</li>
+          <li>• Se você é um novo usuário ou seu e-mail não está confirmado, um código de verificação foi enviado (ou será enviado) para sua caixa de entrada. Use-o na página de verificação.</li>
+          <li>• Use "Esqueceu sua senha?" para receber um novo código de acesso por e-mail.</li>
+          <li>• Certifique-se de ter uma conta registrada.</li>
+          <li>• Verifique também a pasta de spam/lixo eletrônico para o código.</li>
         </ul>
         
-        <div className="mt-3 space-y-2">
-          <Link
-            to="/register"
-            className="text-sm text-primary-600 hover:text-primary-700 font-medium block"
-          >
-            Não tem uma conta? Registre-se aqui
-          </Link>
-          
+        {/* O botão "Reenviar email de verificação" foi removido */}
+        {/* <div className="mt-3 space-y-2">
           <button
             type="button"
             onClick={handleResendVerification}
@@ -161,7 +137,7 @@ export const LoginForm: React.FC = () => {
           >
             Reenviar email de verificação
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );
