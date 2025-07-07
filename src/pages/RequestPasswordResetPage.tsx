@@ -4,14 +4,15 @@ import { GraduationCap, Mail, ArrowLeft } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase'; // Verifique se o caminho está correto
 import toast from 'react-hot-toast';
 
 export const RequestPasswordResetPage: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
-  const [emailSent, setEmailSent] = useState(false);
+  // Não precisamos mais de 'emailSent' para a tela de sucesso, pois redirecionaremos para /verify-otp
+  // const [emailSent, setEmailSent] = useState(false); 
 
   const validateEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -21,114 +22,52 @@ export const RequestPasswordResetPage: React.FC = () => {
     e.preventDefault();
     
     if (!email.trim()) {
-      toast.error('Por favor, digite seu email');
+      toast.error('Por favor, digite seu e-mail.');
       return;
     }
 
     if (!validateEmail(email)) {
-      toast.error('Por favor, digite um email válido');
+      toast.error('Por favor, digite um e-mail válido.');
       return;
     }
 
     setLoading(true);
 
     try {
-      // ✅ CORRECTION: Utiliser la bonne URL de redirection
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      // REMOVIDO: redirectTo, agora o Supabase enviará o OTP via template configurado
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
 
       if (error) {
-        console.error('Reset password error:', error);
+        console.error('Erro ao solicitar redefinição de senha:', error);
         
         if (error.message.includes('rate_limit')) {
-          toast.error('Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.');
+          toast.error('Muitas tentativas. Por favor, aguarde alguns minutos antes de tentar novamente.');
         } else if (error.message.includes('email_not_confirmed')) {
-          toast.error('Email não confirmado. Verifique sua caixa de entrada primeiro.');
+          // Se o e-mail não estiver confirmado, ainda podemos tentar enviar o OTP para que ele possa acessar
+          toast.error('E-mail não confirmado. Um código de verificação foi enviado para ele.');
+          navigate(`/verify-otp?email=${encodeURIComponent(email)}&type=recovery`);
         } else {
-          toast.error('Erro ao enviar email de recuperação. Verifique se o email está correto.');
+          toast.error('Erro ao enviar código de recuperação. Verifique se o e-mail está correto.');
         }
-        return;
+        // Não retornamos aqui para permitir a navegação para verify-otp mesmo com alguns erros
+      } else {
+        toast.success('Código de recuperação enviado! Por favor, verifique seu e-mail.');
+        // Redirecionar para a página de inserção de OTP, especificando o tipo 'recovery'
+        navigate(`/verify-otp?email=${encodeURIComponent(email)}&type=recovery`);
       }
-
-      setEmailSent(true);
-      toast.success('Email de recuperação enviado! Verifique sua caixa de entrada.');
       
-    } catch (error) {
-      console.error('Reset password error:', error);
-      toast.error('Erro inesperado ao enviar email de recuperação');
+    } catch (error: any) {
+      console.error('❌ [RequestPasswordResetPage] Exceção na solicitação de redefinição:', error.message);
+      toast.error('Ocorreu um erro inesperado. Por favor, tente novamente.');
+      // Em caso de erro inesperado grave, redirecionar para a página de verificação se o e-mail foi enviado
+      navigate(`/verify-otp?email=${encodeURIComponent(email)}&type=recovery`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendEmail = () => {
-    setEmailSent(false);
-    setLoading(false);
-  };
-
-  if (emailSent) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
-          <div className="text-center">
-            <div className="flex justify-center">
-              <Mail className="h-12 w-12 text-green-600" />
-            </div>
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">
-              Email Enviado!
-            </h1>
-            <p className="mt-2 text-gray-600">
-              Enviamos um link de recuperação para <strong>{email}</strong>
-            </p>
-          </div>
-
-          <Card>
-            <div className="p-6 space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <Mail className="h-5 w-5 text-green-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">
-                      Verifique sua caixa de entrada
-                    </h3>
-                    <div className="mt-2 text-sm text-green-700">
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>Clique no link no email para redefinir sua senha</li>
-                        <li>O link expira em 1 hora por segurança</li>
-                        <li>Verifique também a pasta de spam/lixo eletrônico</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Button
-                  onClick={handleResendEmail}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Enviar Novamente
-                </Button>
-                
-                <Button
-                  onClick={() => navigate('/login')}
-                  variant="ghost"
-                  className="w-full"
-                  leftIcon={<ArrowLeft className="h-4 w-4" />}
-                >
-                  Voltar ao Login
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  // REMOVIDO: handleResendEmail e a renderização condicional de emailSent não são mais necessárias
+  // porque a navegação para /verify-otp acontece diretamente e o reenviar está na página verify-otp.
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
@@ -141,20 +80,20 @@ export const RequestPasswordResetPage: React.FC = () => {
             Recuperar Senha
           </h1>
           <p className="mt-2 text-gray-600">
-            Digite seu email para receber um link de recuperação de senha
+            Digite seu e-mail para receber um código de verificação.
           </p>
         </div>
 
         <Card>
           <form onSubmit={handleSubmit} className="space-y-6 p-6">
             <Input
-              label="Email"
+              label="E-mail"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               fullWidth
-              placeholder="Digite seu email cadastrado"
+              placeholder="Digite seu e-mail cadastrado"
               leftIcon={<Mail className="h-4 w-4" />}
             />
 
@@ -163,7 +102,7 @@ export const RequestPasswordResetPage: React.FC = () => {
               className="w-full"
               isLoading={loading}
             >
-              {loading ? 'Enviando...' : 'Enviar Link de Recuperação'}
+              {loading ? 'Enviando...' : 'Enviar Código de Verificação'}
             </Button>
           </form>
         </Card>
@@ -174,7 +113,7 @@ export const RequestPasswordResetPage: React.FC = () => {
             className="text-sm text-primary-600 hover:text-primary-700 flex items-center justify-center space-x-1"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Voltar ao login</span>
+            <span>Voltar para o Login</span>
           </button>
           
           <p className="text-xs text-gray-500">
@@ -187,6 +126,9 @@ export const RequestPasswordResetPage: React.FC = () => {
             </button>
           </p>
         </div>
+        <p className="mt-4 text-center text-xs text-gray-500">
+          Um código de verificação será enviado para o seu e-mail. Use-o para acessar sua conta e, em seguida, defina uma nova senha nas configurações.
+        </p>
       </div>
     </div>
   );
