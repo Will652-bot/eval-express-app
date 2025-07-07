@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // Importe useNavigate
+import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { supabase } from '../../lib/supabase'; // Verifique se o caminho está correto
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 export const LoginForm: React.FC = () => {
   const { signIn } = useAuth();
-  const navigate = useNavigate(); // Inicialize useNavigate
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string>('');
   const [formData, setFormData] = useState({
@@ -31,13 +31,11 @@ export const LoginForm: React.FC = () => {
 
         if (error.message.includes('Invalid login credentials')) {
           setLoginError('E-mail ou senha incorretos. Verifique seus dados.');
-        } else if (error.message.includes('Email not confirmed') || error.message.includes('Email not confirmed')) {
-          // Se o e-mail não estiver confirmado, redirecionar para a página de verificação OTP
+        } else if (error.message.includes('Email not confirmed')) {
           setLoginError('Seu e-mail ainda não foi verificado. Redirecionando para a página de verificação...');
-          // Opcional: reenviar OTP automaticamente aqui se desejar, mas o verify-otp tem a opção
-          await supabase.auth.signInWithOtp({ email: formData.email }); // Reenvia o OTP
+          await supabase.auth.signInWithOtp({ email: formData.email });
           navigate(`/verify-otp?email=${encodeURIComponent(formData.email)}&type=email`);
-          return; // Retorna para não mostrar o toast de erro genérico
+          return;
         } else if (error.message.includes('Too many requests')) {
           setLoginError('Muitas tentativas. Por favor, aguarde alguns minutos e tente novamente.');
         } else if (error.message.includes('User not found')) {
@@ -59,10 +57,6 @@ export const LoginForm: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // REMOVIDO: handleResendVerification não é mais necessário com o fluxo OTP
-  // porque o reenviar código está na página /verify-otp
-  // const handleResendVerification = async () => { ... };
 
   return (
     <div className="space-y-6">
@@ -127,17 +121,16 @@ export const LoginForm: React.FC = () => {
           <li>• Verifique também a pasta de spam/lixo eletrônico para o código.</li>
         </ul>
         
-        {/* O botão "Reenviar email de verificação" foi removido */}
-        {/* <div className="mt-3 space-y-2">
-          <button
-            type="button"
-            onClick={handleResendVerification}
-            className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-            disabled={loading}
+        {/* >>> DÉBUT DE LA CORRECTION : Ajout du lien "Não tem uma conta? Registre-se aqui" <<< */}
+        <div className="mt-3 space-y-2">
+          <Link
+            to="/register"
+            className="text-sm text-primary-600 hover:text-primary-700 font-medium block"
           >
-            Reenviar email de verificação
-          </button>
-        </div> */}
+            Não tem uma conta? Registre-se aqui
+          </Link>
+        </div>
+        {/* >>> FIN DE LA CORRECTION <<< */}
       </div>
     </div>
   );
