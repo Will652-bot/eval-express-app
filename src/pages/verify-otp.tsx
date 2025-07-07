@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 // import { useRouter } from 'next/router'; // Se você usa Next.js para navegação
 import { useNavigate, useLocation } from 'react-router-dom'; // Se você usa React Router, use: import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient'; // Verifique se o caminho está correto
+import { supabase } from '../lib/supabase'; // <<< CHEMIN ET NOM DU FICHIER CONFIRMÉS : 'supabase' de '../lib/supabase'
 
 const VerifyOtpPage = () => {
   // const router = useRouter(); // Para Next.js
@@ -91,7 +91,7 @@ const VerifyOtpPage = () => {
       // Para o cadastro inicial, usamos signInWithOtp (para reenviar um OTP)
       ({ error: resendError } = await supabase.auth.signInWithOtp({ email: email }));
     } else {
-      // Para a redefinição, usamos resetPasswordForEmail (para reenviar um OTP de recuperação)
+      // Para a redefinição, usamos resetPasswordForEmail (pour reenviar um OTP de recuperação)
       ({ error: resendError } = await supabase.auth.resetPasswordForEmail(email));
     }
 
