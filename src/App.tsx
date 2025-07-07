@@ -32,16 +32,22 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { SignupDebugPanel } from './components/debug/SignupDebugPanel';
 
+// >>> NOUVEL IMPORT : Importez votre nouvelle page VerifyOtpPage
+import VerifyOtpPage from './pages/verify-otp'; // Assurez-vous que le nom est exact (par défaut ou nommé)
+
 const App: React.FC = () => {
   return (
     <AuthProvider>
       <Router>
         <Routes>
 
-          {/* Public routes */}
+          {/* Rotas públicas */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/check-email" element={<CheckEmailPage />} />
+          {/* Manter as rotas /verify e /verify-email por enquanto,
+              mas elas podem se tornar redundantes ou precisar de ajustes futuros
+              se o fluxo de verificação for APENAS via OTP. */}
           <Route path="/verify" element={<VerifyEmailPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -49,13 +55,16 @@ const App: React.FC = () => {
           <Route path="/debug-auth" element={<DebugAuthPage />} />
           <Route path="/update-password" element={<UpdatePasswordPage />} />
 
-          {/* Stripe redirection routes – portugais et anglais */}
+          {/* >>> NOVA ROTA PARA VERIFICAÇÃO OTP <<< */}
+          <Route path="/verify-otp" element={<VerifyOtpPage />} />
+
+          {/* Rotas de redirecionamento do Stripe – português e inglês */}
           <Route path="/payment-success" element={<PaymentSuccessPage />} />
           <Route path="/sucesso" element={<PaymentSuccessPage />} />
           <Route path="/payment-cancel" element={<PaymentCancelPage />} />
           <Route path="/cancelado" element={<PaymentCancelPage />} />
 
-          {/* Protected routes */}
+          {/* Rotas protegidas */}
           <Route
             path="/"
             element={
@@ -88,11 +97,11 @@ const App: React.FC = () => {
             <Route path="about" element={<AboutPage />} />
           </Route>
 
-          {/* Catch-all redirect */}
+          {/* Redirecionamento padrão para qualquer rota não encontrada */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
 
-        {/* Debug Panel - visible only in dev or for admin */}
+        {/* Painel de depuração - visível apenas em desenvolvimento ou para admin */}
         <SignupDebugPanel />
       </Router>
     </AuthProvider>
