@@ -4,8 +4,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
-import { Select, SelectItem } from '@/components/ui/Select';
+import { Select } from '@/components/ui/Select';
 import toast from 'react-hot-toast';
+
 
 interface TeacherType {
   id: string;
