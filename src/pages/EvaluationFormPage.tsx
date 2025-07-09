@@ -375,86 +375,78 @@ export const EvaluationFormPage: React.FC = () => {
   // Accepte evaluationId comme argument pour une meilleure clarté et testabilité
   const fetchEvaluation = async (evaluationId: string) => { 
     try {
-      // Fetch the initial evaluation record to get common data (class, criterion, date, evaluation_title_id)
-      // CORRECTION FINALE ICI: Spécifiez explicitement 'evaluations.id' et mettez la clause select sur une ligne pour éviter les problèmes de parsing.
-      const { data, error } = await supabase
+      // 1. Fetch the primary evaluation record to get common data (class_id, criterion_id, date, evaluation_title_id, student_id)
+      // This query is simplified to avoid complex embedding that causes parsing issues.
+      const { data: mainEvaluation, error: mainError } = await supabase
         .from('evaluations')
-        .select(`evaluations.id, date, comments, class_id, teacher_id, student_id, criterion_id, value, evaluation_title_id, student:students(id,first_name,last_name,class_id), evaluation_title:evaluation_titles(title)`)
+        .select(`id, date, comments, class_id, teacher_id, student_id, criterion_id, value, evaluation_title_id`)
         .eq('id', evaluationId)
         .single();
 
-      if (error) throw error;
+      if (mainError) throw mainError;
 
-      if (data) {
-        // Set common form fields
-        setDate(new Date(data.date).toISOString().split('T')[0]);
-        setSelectedClass(data.class_id);
-        setSelectedEvaluationTitleId(data.evaluation_title_id || '');
+      if (mainEvaluation) {
+        // Set common form fields from the main evaluation
+        setDate(new Date(mainEvaluation.date).toISOString().split('T')[0]);
+        setSelectedClass(mainEvaluation.class_id);
+        setSelectedEvaluationTitleId(mainEvaluation.evaluation_title_id || '');
 
-        // Set display title field visibility
-        if (data.evaluation_title_id) {
-          setEvaluationTitleName(data.evaluation_title?.title || '');
-          setShowTitleField(false);
-        } else {
-          setShowTitleField(true);
+        // 2. Fetch evaluation title details separately
+        let displayTitle = '';
+        if (mainEvaluation.evaluation_title_id) {
+          const { data: titleData, error: titleError } = await supabase
+            .from('evaluation_titles')
+            .select('title')
+            .eq('id', mainEvaluation.evaluation_title_id)
+            .single();
+          if (titleError) console.error('Error fetching evaluation title:', titleError.message);
+          displayTitle = titleData?.title || '';
         }
+        setEvaluationTitleName(displayTitle);
+        setShowTitleField(!mainEvaluation.evaluation_title_id); // Show editable field if no evaluation_title_id
 
-        // Fetch all students for this class to ensure the full grid is displayed
+        // 3. Fetch all students for this class to ensure the full grid is displayed
         const { data: classStudents, error: studentsError } = await supabase
           .from('students')
-          .select('*')
-          .eq('class_id', data.class_id)
+          .select('id, first_name, last_name') // Select only necessary student fields
+          .eq('class_id', mainEvaluation.class_id)
           .order('first_name');
-
         if (studentsError) throw studentsError;
 
-        // Now fetch all evaluation records for this specific combination of class, date, criterion, and evaluation_title_id
-        // This is crucial to get all student-specific values and comments
+        // 4. Fetch all relevant evaluation records for this group (class, date, criterion, evaluation_title_id)
+        // This query now fetches all student-specific values and comments for the group.
         const { data: existingEvaluations, error: evalError } = await supabase
           .from('evaluations')
-          .select(`
-            id, // IMPORTANT: Fetch the individual evaluation ID for updates
-            student_id,
-            value,
-            comments, // IMPORTANT: Fetch the comments for each student
-            student:students(
-              id,
-              first_name,
-              last_name
-            )
-          `)
-          .eq('class_id', data.class_id)
-          .eq('criterion_id', data.criterion_id)
-          .eq('date', data.date)
+          .select(`id, student_id, value, comments`) // Simplified select for actual evaluation data
+          .eq('class_id', mainEvaluation.class_id)
+          .eq('criterion_id', mainEvaluation.criterion_id)
+          .eq('date', mainEvaluation.date)
           .eq('teacher_id', user?.id); // Ensure only current user's evaluations are fetched
 
         if (evalError) throw evalError;
 
         // Map existing evaluations to students for easy lookup
-        const evaluationsMap = new Map<string, StudentEvaluationData>();
+        const evaluationsMap = new Map<string, Omit<StudentEvaluationData, 'student_name'>>();
         existingEvaluations?.forEach(evaluation => {
           evaluationsMap.set(evaluation.student_id, {
-            id: evaluation.id, // Store the evaluation ID
+            id: evaluation.id,
             student_id: evaluation.student_id,
-            student_name: `${evaluation.student.first_name} ${evaluation.student.last_name}`,
-            criterion_id: evaluation.criterion_id, // This will be the same for all in this batch
+            criterion_id: mainEvaluation.criterion_id, // Common criterion for the group
             value: evaluation.value?.toString() || '',
-            comments: evaluation.comments || '' // Store the student-specific comment
+            comments: evaluation.comments || ''
           });
         });
 
         // Create the final evaluations array, combining all students with their existing evaluation data
         const allEvaluations: StudentEvaluationData[] = classStudents?.map(student => {
           const existing = evaluationsMap.get(student.id);
-          if (existing) return existing;
-
-          // If no existing evaluation for this student, create a new entry
           return {
             student_id: student.id,
             student_name: `${student.first_name} ${student.last_name}`,
-            criterion_id: data.criterion_id, // Use the common criterion_id from the fetched evaluation
-            value: '', // Default empty value
-            comments: '', // Default empty comment
+            criterion_id: existing?.criterion_id || mainEvaluation.criterion_id, // Ensure criterion_id is set
+            value: existing?.value || '',
+            comments: existing?.comments || '',
+            id: existing?.id // Pass the evaluation record ID if it exists
           };
         }) || [];
 
