@@ -1,4 +1,5 @@
 import React from 'react';
+import { cn } from '@/lib/utils';
 
 interface Option {
   value: string;
@@ -23,12 +24,12 @@ export const Select: React.FC<SelectProps> = ({
   className,
 }) => {
   return (
-    <div className={className}>
+    <div className={cn("space-y-1", className)}>
       {label && <label className="block text-sm font-medium text-gray-700">{label}</label>}
       <select
         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(e.currentTarget.value)}
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((opt) => (
