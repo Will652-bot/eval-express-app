@@ -1,28 +1,40 @@
-// src/features/teacherTypeSelector/hooks/useSelectedTeacherTypes.ts
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 
-export function useSelectedTeacherTypes(userId: string | undefined) {
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+export function useSelectedTeacherTypes(userId: string) {
+  const [selectedTeacherTypes, setSelectedTeacherTypes] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  useEffect(() => {
+  const fetchSelectedTeacherTypes = async () => {
     if (!userId) return;
-
-    const fetchSelected = async () => {
-      setLoading(true);
+    setLoading(true);
+    try {
       const { data, error } = await supabase
-        .from('users_teachertypes')
+        .from('user_teacher_types')
         .select('teachertype_id')
         .eq('user_id', userId);
-      if (!error && data) {
-        setSelectedTypes(data.map((d) => d.teachertype_id));
-      }
-      setLoading(false);
-    };
 
-    fetchSelected();
+      if (error) {
+        console.error('❌ Erro ao carregar teacherTypes:', error.message);
+        setSelectedTeacherTypes([]);
+      } else {
+        const ids = data.map((item) => item.teachertype_id);
+        setSelectedTeacherTypes(ids);
+      }
+    } catch (err) {
+      console.error('❌ Erro inesperado ao buscar teacherTypes:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSelectedTeacherTypes();
   }, [userId]);
 
-  return { selectedTypes, loading };
+  return {
+    selectedTeacherTypes,
+    loading,
+    refetchSelectedTeacherTypes: fetchSelectedTeacherTypes,
+  };
 }
