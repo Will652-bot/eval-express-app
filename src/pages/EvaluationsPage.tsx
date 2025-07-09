@@ -17,7 +17,7 @@ interface Evaluation {
   student_id: string;
   class_id: string;
   criterion_id: string;
-  comments: string;
+  comments: string; // This field exists in the DB but is now per student.
   created_at: string;
   evaluation_title_id: string | null;
   student: {
@@ -73,18 +73,18 @@ export const EvaluationsPage: React.FC = () => {
         .order('date', { ascending: sortOrder === 'asc' });
 
       if (error) throw error;
-      
+
       setEvaluations(data || []);
-      
+
       // Group evaluations by title, date, and criterion
       const groups = data?.reduce((acc: any, evaluation: Evaluation) => {
         // Use evaluation_title.title if available, fallback to evaluation.title
         const displayTitle = evaluation.evaluation_title?.title || '';
         const key = `${displayTitle}-${evaluation.date}-${evaluation.criterion_id}-${evaluation.class_id}`;
-        
+
         if (!acc[key]) {
           acc[key] = {
-            id: evaluation.id,
+            id: evaluation.id, // ID of one evaluation in the group (used for editing)
             title: displayTitle, // Use the resolved title
             date: evaluation.date,
             class_id: evaluation.class_id,
@@ -92,7 +92,8 @@ export const EvaluationsPage: React.FC = () => {
             criterion_id: evaluation.criterion_id,
             criterion_name: evaluation.criteria.name,
             criterion_range: `${evaluation.criteria.min_value} - ${evaluation.criteria.max_value}`,
-            comments: evaluation.comments,
+            // MODIFICATION ICI: Suppression du champ comments de l'objet de regroupement
+            // comments: evaluation.comments, // Comment is now per student, not per group
             evaluation_title_id: evaluation.evaluation_title_id,
             count: 1
           };
@@ -101,9 +102,9 @@ export const EvaluationsPage: React.FC = () => {
         }
         return acc;
       }, {});
-      
+
       setGroupedEvaluations(Object.values(groups || {}));
-      
+
     } catch (error) {
       console.error('Error fetching evaluations:', error);
       toast.error('Erro ao carregar avaliações');
@@ -124,7 +125,7 @@ export const EvaluationsPage: React.FC = () => {
   const handleConfirmDelete = async () => {
     try {
       const { groupInfo } = confirmDialog;
-      
+
       if (groupInfo) {
         // Delete all evaluations with the same title, date, and criterion
         // Handle both evaluation_title_id and fallback title
@@ -144,7 +145,7 @@ export const EvaluationsPage: React.FC = () => {
       }
 
       toast.success('Avaliação excluída com sucesso');
-      fetchEvaluations();
+      fetchEvaluations(); // Refresh the list
     } catch (error) {
       console.error('Error deleting evaluation:', error);
       toast.error('Erro ao excluir avaliação');
@@ -153,13 +154,15 @@ export const EvaluationsPage: React.FC = () => {
     }
   };
 
-  const filteredEvaluations = groupedEvaluations.filter(evaluation => 
+  const filteredEvaluations = groupedEvaluations.filter(evaluation =>
     evaluation.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     evaluation.class_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     evaluation.criterion_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEditClick = (evaluation: any) => {
+    // Navigates to the EvaluationFormPage with the ID of one evaluation from the group.
+    // The EvaluationFormPage then fetches all related evaluations for that group.
     navigate(`/evaluations/${evaluation.id}/edit`);
   };
 
