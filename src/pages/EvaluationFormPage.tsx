@@ -44,7 +44,7 @@ export const EvaluationFormPage: React.FC = () => {
   const { id } = useParams(); // 'id' is the ID of a single evaluation record for editing
 
   // AJOUT TEMPORAIRE POUR DÉBOGAGE : Ligne à ajouter pour capturer l'ID dès sa lecture
-  console.log('ID reçu de useParams dans EvaluationFormPage:', id); 
+  // console.log('ID reçu de useParams dans EvaluationFormPage:', id); 
   // FIN AJOUT TEMPORAIRE
 
   const { user } = useAuth();
