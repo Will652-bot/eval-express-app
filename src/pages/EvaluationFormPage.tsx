@@ -733,7 +733,7 @@ export const EvaluationFormPage: React.FC = () => {
         <p className="mt-1 text-gray-500">
           {isEditing
             ? 'Atualize as informações des évaluations'
-            : 'Preencha as informações para créer múltiples évaluations'}
+            : 'Preencha as informations pour créer múltiples évaluations'}
         </p>
       </div>
 
@@ -932,6 +932,7 @@ export const EvaluationFormPage: React.FC = () => {
                   <p className="mt-2 text-gray-500">Carregando alunos...</p>
                 </div>
               ) : students.length === 0 ? (
+                // CORRECTION ICI: Suppression de la balise </p> en trop
                 <div className="text-center py-6 bg-gray-50 rounded-lg">
                   <p className="text-gray-500">Nenhum aluno encontrado nesta turma.</p>
                   <Button
@@ -942,7 +943,7 @@ export const EvaluationFormPage: React.FC = () => {
                   >
                     Adicionar aluno
                   </Button>
-                </p>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
