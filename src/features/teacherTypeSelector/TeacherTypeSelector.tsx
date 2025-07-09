@@ -1,9 +1,10 @@
+// src/features/teacherTypeSelector/TeacherTypeSelector.tsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
-import { Checkbox } from '@/components/ui/Checkbox';
+import { Select, SelectItem } from '@/components/ui/Select';
 import toast from 'react-hot-toast';
 
 interface TeacherType {
@@ -14,77 +15,84 @@ interface TeacherType {
 export const TeacherTypeSelector: React.FC = () => {
   const { user } = useAuth();
   const [teacherTypes, setTeacherTypes] = useState<TeacherType[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchTeacherTypes = async () => {
-      const { data, error } = await supabase.from('teachertypes').select('*');
-      if (error) {
-        toast.error('Erro ao carregar tipos de professores');
-        return;
-      }
-      setTeacherTypes(data);
-    };
-
-    const fetchUserSelections = async () => {
-      if (!user) return;
-      const { data, error } = await supabase
-        .from('users_teachertypes')
-        .select('teachertype_id')
-        .eq('user_id', user.id);
-      if (!error && data) {
-        setSelectedIds(data.map((item) => item.teachertype_id));
-      }
-    };
-
     fetchTeacherTypes();
-    fetchUserSelections();
-  }, [user]);
+    fetchUserSelectedTypes();
+  }, []);
 
-  const toggleSelection = (id: string) => {
-    setSelectedIds((prev) => {
-      if (prev.includes(id)) return prev.filter((tid) => tid !== id);
-      if (prev.length < 2) return [...prev, id];
-      toast.error('Selecione no máximo 2 tipos.');
-      return prev;
-    });
+  const fetchTeacherTypes = async () => {
+    const { data, error } = await supabase.from('teachertypes').select('*');
+    if (error) {
+      toast.error('Erro ao carregar tipos de professor');
+    } else {
+      setTeacherTypes(data);
+    }
+  };
+
+  const fetchUserSelectedTypes = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('users_teachertypes')
+      .select('teachertype_id')
+      .eq('user_id', user.id);
+
+    if (error) {
+      toast.error('Erro ao carregar seleção anterior');
+    } else {
+      setSelectedTypes(data.map((entry) => entry.teachertype_id));
+    }
+  };
+
+  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const selected = Array.from(event.target.selectedOptions).map((opt) => opt.value);
+    if (selected.length > 2) {
+      toast.error('Você pode selecionar no máximo dois tipos.');
+    } else {
+      setSelectedTypes(selected);
+    }
   };
 
   const handleSave = async () => {
     if (!user) return;
     setLoading(true);
     const { error } = await supabase.rpc('save_teachertype_selection', {
-      user_id: user.id,
-      teachertype_ids: selectedIds,
+      p_user_id: user.id,
+      p_teachertype_ids: selectedTypes
     });
-    setLoading(false);
+
     if (error) {
-      toast.error('Erro ao salvar a seleção');
+      toast.error('Erro ao salvar seleção');
     } else {
       toast.success('Seleção salva com sucesso');
     }
+    setLoading(false);
   };
 
   return (
-    <div className="space-y-4">
-      <Label>Selecione até dois tipos de ensino:</Label>
-      <div className="grid grid-cols-1 gap-2">
+    <div className="mb-6">
+      <Label>Qual seu tipo de ensino? (máx. 2)</Label>
+      <Select
+        multiple
+        value={selectedTypes}
+        onChange={handleChange}
+        className="mt-1 w-full h-24 border rounded"
+      >
         {teacherTypes.map((type) => (
-          <label key={type.id} className="flex items-center space-x-2">
-            <Checkbox
-              checked={selectedIds.includes(type.id)}
-              onCheckedChange={() => toggleSelection(type.id)}
-            />
-            <span>{type.teachertype}</span>
-          </label>
+          <SelectItem key={type.id} value={type.id}>
+            {type.teachertype}
+          </SelectItem>
         ))}
-      </div>
-      <Button onClick={handleSave} disabled={loading}>
+      </Select>
+      <Button
+        className="mt-2"
+        onClick={handleSave}
+        disabled={loading || selectedTypes.length === 0}
+      >
         {loading ? 'Salvando...' : 'Salvar escolha'}
       </Button>
     </div>
   );
 };
-
-export default TeacherTypeSelector;
