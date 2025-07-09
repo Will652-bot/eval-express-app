@@ -364,10 +364,21 @@ export const EvaluationFormPage: React.FC = () => {
   const fetchEvaluation = async () => {
     try {
       // Fetch the initial evaluation record to get common data (class, criterion, date, evaluation_title_id)
+      // MODIFICATION ICI: Spécifiez explicitement toutes les colonnes de 'evaluations' au lieu de '*'
       const { data, error } = await supabase
         .from('evaluations')
         .select(`
-          *,
+          id, // L'ID de l'enregistrement d'évaluation individuel
+          date,
+          comments, // Le champ 'comments' maintenant utilisé par élève
+          class_id,
+          teacher_id,
+          student_id, // L'ID de l'étudiant, utile pour les jointures
+          criterion_id,
+          value,
+          evaluation_title_id, // L'ID du titre de l'évaluation
+
+          // Jointures pour les données associées (student et evaluation_title)
           student:students(
             id,
             first_name,
@@ -451,7 +462,7 @@ export const EvaluationFormPage: React.FC = () => {
             student_name: `${student.first_name} ${student.last_name}`,
             criterion_id: data.criterion_id, // Use the common criterion_id from the fetched evaluation
             value: '', // Default empty value
-            comments: '' // Default empty comment
+            comments: '', // Default empty comment
           };
         }) || [];
 
