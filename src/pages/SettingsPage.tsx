@@ -9,7 +9,8 @@ import { Database, Trash2, Plus, Info, CheckCircle, XCircle } from 'lucide-react
 import toast from 'react-hot-toast';
 import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm';
 import { TeacherTypeSelector } from '../features/teacherTypeSelector/TeacherTypeSelector';
-import { useSelectedTeacherTypes } from '../features/teacherTypeSelector/useSelectedTeacherTypes';
+import { useSelectedTeacherTypes } from '../features/teacherTypeSelector/hooks/useSelectedTeacherTypes';
+
 
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
