@@ -42,6 +42,11 @@ interface StudentEvaluationData {
 export const EvaluationFormPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams(); // 'id' is the ID of a single evaluation record for editing
+
+  // AJOUT TEMPORAIRE POUR DÉBOGAGE : Ligne à ajouter pour capturer l'ID dès sa lecture
+  console.log('ID reçu de useParams dans EvaluationFormPage:', id); 
+  // FIN AJOUT TEMPORAIRE
+
   const { user } = useAuth();
 
   // Loading states
@@ -93,12 +98,19 @@ export const EvaluationFormPage: React.FC = () => {
 
       if (isEditing) {
         // If editing, fetch the specific evaluation data
-        await fetchEvaluation();
+        // AJOUT DE VÉRIFICATION POUR LE DÉBOGAGE :
+        if (id) {
+          await fetchEvaluation(id); // Passer l'ID comme argument
+        } else {
+          console.error("Erreur: isEditing est vrai mais l'ID de l'évaluation est manquant dans les paramètres de l'URL.");
+          toast.error("Erro ao carregar avaliação: ID ausente.");
+          navigate('/evaluations'); 
+        }
       }
     };
 
     initialize();
-  }, [id, user?.id]); // Added user?.id to dependencies for re-fetch on auth change
+  }, [id, user?.id, isEditing]); // Added user?.id and isEditing to dependencies for re-fetch on auth change
 
   // Fetch students when selectedClass changes
   useEffect(() => {
@@ -361,7 +373,8 @@ export const EvaluationFormPage: React.FC = () => {
   };
 
   // Fetches a single evaluation record by ID and populates the form for editing
-  const fetchEvaluation = async () => {
+  // Accepte evaluationId comme argument pour une meilleure clarté et testabilité
+  const fetchEvaluation = async (evaluationId: string) => { 
     try {
       // Fetch the initial evaluation record to get common data (class, criterion, date, evaluation_title_id)
       // MODIFICATION ICI: Spécifiez explicitement toutes les colonnes de 'evaluations' au lieu de '*'
@@ -387,7 +400,7 @@ export const EvaluationFormPage: React.FC = () => {
           ),
           evaluation_title:evaluation_titles(title)
         `)
-        .eq('id', id)
+        .eq('id', evaluationId) // Utiliser evaluationId passé en argument
         .single();
 
       if (error) throw error;
@@ -395,7 +408,6 @@ export const EvaluationFormPage: React.FC = () => {
       if (data) {
         // Set common form fields
         setDate(new Date(data.date).toISOString().split('T')[0]);
-        // setComments(data.comments || ''); // REMOVED: General comments state
         setSelectedClass(data.class_id);
         setSelectedEvaluationTitleId(data.evaluation_title_id || '');
 
@@ -645,7 +657,7 @@ export const EvaluationFormPage: React.FC = () => {
     setConfirmDialog({
       isOpen: true,
       title: 'Excluir Avaliação',
-      message: `Tem certeza que deseja excluir a avaliação "${evaluationTitleName}"? Esta ação não pode ser desfeita e excluirá todas as avaliações associadas.`
+      message: `Tem certeza que deseja excluir a avaliação "${evaluationTitleName}"? Esta ação não pode ser desfeita e excluirá todas as avaliações associées.`
     });
   };
 
@@ -666,7 +678,7 @@ export const EvaluationFormPage: React.FC = () => {
 
       // Security check: Ensure the evaluation belongs to the current user
       if (evaluationData.teacher_id !== user?.id) {
-        toast.error('Você não tem permissão para excluir esta avaliação');
+        toast.error('Você non a permissão para excluir esta avaliação');
         return;
       }
 
@@ -720,8 +732,8 @@ export const EvaluationFormPage: React.FC = () => {
         </h1>
         <p className="mt-1 text-gray-500">
           {isEditing
-            ? 'Atualize as informações das avaliações'
-            : 'Preencha as informações para criar múltiplas avaliações'}
+            ? 'Atualize as informações des évaluations'
+            : 'Preencha as informações para créer múltiples évaluations'}
         </p>
       </div>
 
@@ -930,7 +942,7 @@ export const EvaluationFormPage: React.FC = () => {
                   >
                     Adicionar aluno
                   </Button>
-                </div>
+                </p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
