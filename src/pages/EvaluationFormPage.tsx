@@ -98,7 +98,6 @@ export const EvaluationFormPage: React.FC = () => {
 
       if (isEditing) {
         // If editing, fetch the specific evaluation data
-        // AJOUT DE VÉRIFICATION POUR LE DÉBOGAGE :
         if (id) {
           await fetchEvaluation(id); // Passer l'ID comme argument
         } else {
@@ -176,7 +175,7 @@ export const EvaluationFormPage: React.FC = () => {
 
       if (selectedEvaluationTitle) {
         setEvaluationTitleName(selectedEvaluationTitle.title);
-        setShowTitleField(false); // Do not show editable field
+        setShowTitleField(false);
       }
     } else if (isEditing && !selectedEvaluationTitleId) {
       setShowTitleField(true); // Show editable field for legacy evaluations without evaluation_title_id
@@ -377,30 +376,11 @@ export const EvaluationFormPage: React.FC = () => {
   const fetchEvaluation = async (evaluationId: string) => { 
     try {
       // Fetch the initial evaluation record to get common data (class, criterion, date, evaluation_title_id)
-      // MODIFICATION ICI: Spécifiez explicitement toutes les colonnes de 'evaluations' au lieu de '*'
+      // CORRECTION FINALE ICI: Spécifiez explicitement 'evaluations.id' et mettez la clause select sur une ligne pour éviter les problèmes de parsing.
       const { data, error } = await supabase
         .from('evaluations')
-        .select(`
-          id, // L'ID de l'enregistrement d'évaluation individuel
-          date,
-          comments, // Le champ 'comments' maintenant utilisé par élève
-          class_id,
-          teacher_id,
-          student_id, // L'ID de l'étudiant, utile pour les jointures
-          criterion_id,
-          value,
-          evaluation_title_id, // L'ID du titre de l'évaluation
-
-          // Jointures pour les données associées (student et evaluation_title)
-          student:students(
-            id,
-            first_name,
-            last_name,
-            class_id
-          ),
-          evaluation_title:evaluation_titles(title)
-        `)
-        .eq('id', evaluationId) // Utiliser evaluationId passé en argument
+        .select(`evaluations.id, date, comments, class_id, teacher_id, student_id, criterion_id, value, evaluation_title_id, student:students(id,first_name,last_name,class_id), evaluation_title:evaluation_titles(title)`)
+        .eq('id', evaluationId)
         .single();
 
       if (error) throw error;
@@ -732,7 +712,7 @@ export const EvaluationFormPage: React.FC = () => {
         </h1>
         <p className="mt-1 text-gray-500">
           {isEditing
-            ? 'Atualize as informações des évaluations'
+            ? 'Atualize as informations des évaluations'
             : 'Preencha as informations pour créer múltiples évaluations'}
         </p>
       </div>
