@@ -59,7 +59,7 @@ export const TeacherTypeSelector: React.FC = () => {
     setLoading(true);
     const { error } = await supabase.rpc('save_teachertype_selection', {
       p_user_id: user.id,
-      p_selected_types: selectedTypes, // ✅ nom corrigé
+      p_selected_types: selectedTypes,
     });
 
     if (error) {
@@ -69,6 +69,50 @@ export const TeacherTypeSelector: React.FC = () => {
       toast.success('Seleção salva com sucesso');
     }
     setLoading(false);
+  };
+
+  const handleGenerateDemoData = async () => {
+    if (!user) return;
+
+    if (selectedTypes.length === 0 || selectedTypes.length > 2) {
+      toast.error('Você deve selecionar 1 ou 2 tipos de ensino para gerar os dados.');
+      return;
+    }
+
+    const { error } = await supabase.rpc('generate_demo_data_by_type', {
+      p_user_id: user.id,
+      p_user_email: user.email,
+      p_teachertype_ids: selectedTypes,
+    });
+
+    if (error) {
+      toast.error('Erro ao criar dados de demonstração');
+      console.error('[generate_demo_data_by_type]', error);
+    } else {
+      toast.success('Dados de demonstração criados com sucesso!');
+    }
+  };
+
+  const handleDeleteDemoData = async () => {
+    if (!user) return;
+
+    if (selectedTypes.length === 0) {
+      toast.error('Você deve ter pelo menos um tipo selecionado para excluir os dados.');
+      return;
+    }
+
+    const { error } = await supabase.rpc('delete_demo_data_by_type', {
+      p_user_id: user.id,
+      p_user_email: user.email,
+      p_teachertype_ids: selectedTypes,
+    });
+
+    if (error) {
+      toast.error('Erro ao excluir dados de demonstração');
+      console.error('[delete_demo_data_by_type]', error);
+    } else {
+      toast.success('Dados de demonstração excluídos com sucesso!');
+    }
   };
 
   return (
@@ -105,6 +149,22 @@ export const TeacherTypeSelector: React.FC = () => {
         disabled={loading || selectedTypes.length === 0}
       >
         {loading ? 'Salvando...' : 'Salvar escolha'}
+      </Button>
+
+      <Button
+        className="mt-4 bg-green-600 hover:bg-green-700 text-white"
+        onClick={handleGenerateDemoData}
+        disabled={selectedTypes.length === 0}
+      >
+        Criar conjunto de dados de demonstração
+      </Button>
+
+      <Button
+        className="mt-2 bg-red-600 hover:bg-red-700 text-white"
+        onClick={handleDeleteDemoData}
+        disabled={selectedTypes.length === 0}
+      >
+        Excluir conjunto de dados de demonstração
       </Button>
     </div>
   );
