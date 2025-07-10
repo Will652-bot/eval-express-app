@@ -5,13 +5,7 @@ import { Input } from '../components/ui/Input';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  Plus,
-  Trash2,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-} from 'lucide-react';
+import { Plus, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm';
 import { TeacherTypeSelector } from '../features/teacherTypeSelector/TeacherTypeSelector';
@@ -152,19 +146,7 @@ export const SettingsPage: React.FC = () => {
       </Card>
 
       <Card>
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold">Tipo de ensino</h2>
-          {validTeacherSelection === true && (
-            <span className="text-green-600 flex items-center gap-1 text-sm">
-              <CheckCircle className="w-4 h-4" /> Seleção ativa
-            </span>
-          )}
-          {validTeacherSelection === false && (
-            <span className="text-red-600 flex items-center gap-1 text-sm">
-              <AlertTriangle className="w-4 h-4" /> Seleção inválida
-            </span>
-          )}
-        </div>
+        <h2 className="text-lg font-semibold mb-2">Tipo de ensino</h2>
         <TeacherTypeSelector
           userId={user?.id || ''}
           onSelectionChange={(types) => setSelectedTeacherTypesLocal(types)}
