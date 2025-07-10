@@ -63,6 +63,29 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     }
   };
 
+  const validateSelection = async () => {
+    const { data: saved, error: loadError } = await supabase
+      .from('users_teachertypes')
+      .select('teachertype_id')
+      .eq('user_id', userId);
+
+    if (loadError || !saved || saved.length === 0) {
+      toast.error('Nenhum tipo salvo ou erro de leitura.');
+      return false;
+    }
+
+    const validTypeIds = teacherTypes.map((t) => t.id);
+    const invalidDetected = saved.some((entry) => !validTypeIds.includes(entry.teachertype_id));
+
+    if (invalidDetected) {
+      toast.error('Tipo inválido detectado! Revise sua seleção.');
+      return false;
+    }
+
+    toast.success('Seleção verificada com sucesso');
+    return true;
+  };
+
   const handleSave = async () => {
     if (!userId) return;
     setLoading(true);
@@ -76,7 +99,9 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
       console.error('[save_teachertype_selection]', error);
     } else {
       toast.success('Seleção salva com sucesso');
+      await validateSelection(); // ⬅️ Nouvelle vérification juste après enregistrement
     }
+
     setLoading(false);
   };
 
