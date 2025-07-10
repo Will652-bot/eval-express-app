@@ -54,16 +54,19 @@ export const SettingsPage: React.FC = () => {
   const handleEmailUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email.trim()) {
-      toast.error('O email é obrigatório');
+      toast.dismiss('email-required');
+      toast.error('O email é obrigatório', { id: 'email-required' });
       return;
     }
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ email: formData.email });
       if (error) throw error;
-      toast.success('Email atualizado com sucesso!');
+      toast.dismiss('email-success');
+      toast.success('Email atualizado com sucesso!', { id: 'email-success' });
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao atualizar email');
+      toast.dismiss('email-error');
+      toast.error(error.message || 'Erro ao atualizar email', { id: 'email-error' });
     } finally {
       setLoading(false);
     }
@@ -71,12 +74,14 @@ export const SettingsPage: React.FC = () => {
 
   const handleCreateDemoData = async () => {
     if (!user?.id || !user?.email) {
-      toast.error('Usuário não autenticado');
+      toast.dismiss('not-authenticated');
+      toast.error('Usuário não autenticado', { id: 'not-authenticated' });
       return;
     }
 
     if (validTeacherSelection !== true) {
-      toast.error('Selecione um tipo de ensino válido antes de continuar');
+      toast.dismiss('invalid-selection');
+      toast.error('Selecione um tipo de ensino válido antes de continuar', { id: 'invalid-selection' });
       return;
     }
 
@@ -89,11 +94,14 @@ export const SettingsPage: React.FC = () => {
       });
       if (error) throw error;
 
-      toast.success('✅ Dados de demonstração criados com sucesso');
+      toast.dismiss('demo-success');
+      toast.success('✅ Dados de demonstração criados com sucesso', { id: 'demo-success' });
+
       await refetchDemoStatus();
       localStorage.removeItem(`demo-banner-dismissed-${user.id}`);
     } catch (error: any) {
-      toast.error('❌ Erro ao criar dados: ' + (error.message || 'Erro desconhecido'));
+      toast.dismiss('demo-error');
+      toast.error('❌ Erro ao criar dados: ' + (error.message || 'Erro desconhecido'), { id: 'demo-error' });
     } finally {
       setDemoLoading(false);
     }
@@ -101,12 +109,14 @@ export const SettingsPage: React.FC = () => {
 
   const handleDeleteDemoData = async () => {
     if (!user?.id || !user?.email) {
-      toast.error('Usuário não autenticado');
+      toast.dismiss('not-authenticated');
+      toast.error('Usuário não autenticado', { id: 'not-authenticated' });
       return;
     }
 
     if (validTeacherSelection !== true) {
-      toast.error('Seleção inválida. Verifique os tipos de ensino antes de continuar.');
+      toast.dismiss('invalid-selection');
+      toast.error('Seleção inválida. Verifique os tipos de ensino antes de continuar.', { id: 'invalid-selection' });
       return;
     }
 
@@ -119,10 +129,13 @@ export const SettingsPage: React.FC = () => {
       });
       if (error) throw error;
 
-      toast.success('✅ Dados de demonstração excluídos com sucesso');
+      toast.dismiss('delete-success');
+      toast.success('✅ Dados de demonstração excluídos com sucesso', { id: 'delete-success' });
+
       await refetchDemoStatus();
     } catch (error: any) {
-      toast.error('❌ Erro ao excluir dados: ' + (error.message || 'Erro desconhecido'));
+      toast.dismiss('delete-error');
+      toast.error('❌ Erro ao excluir dados: ' + (error.message || 'Erro desconhecido'), { id: 'delete-error' });
     } finally {
       setDemoLoading(false);
       setShowDeleteConfirm(false);
