@@ -31,8 +31,13 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     if (!userId) return;
     fetchTeacherTypes();
     fetchUserSelectedTypes();
-    validateSelection(); // ✅ appel automatique au chargement
   }, [userId]);
+
+  useEffect(() => {
+    if (teacherTypes.length > 0) {
+      validateSelection(); // attendre la fin du chargement
+    }
+  }, [teacherTypes]);
 
   const fetchTeacherTypes = async () => {
     const { data, error } = await supabase.from('teachertypes').select('*');
@@ -69,12 +74,18 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   };
 
   const validateSelection = async (): Promise<boolean> => {
+    if (teacherTypes.length === 0) {
+      console.warn('[validateSelection] Liste vide, validation annulée.');
+      return false;
+    }
+
     const { data: saved, error: loadError } = await supabase
       .from('users_teachertypes')
       .select('teachertype_id')
       .eq('user_id', userId);
 
     if (loadError || !saved || saved.length === 0) {
+      if (validSelection !== false) toast.error('Nenhum tipo salvo ou erro de leitura.');
       setValidSelection(false);
       onValidationChange?.(false);
       return false;
@@ -84,11 +95,13 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     const invalidDetected = saved.some((entry) => !validTypeIds.includes(entry.teachertype_id));
 
     if (invalidDetected) {
+      if (validSelection !== false) toast.error('Tipo inválido detectado! Revise sua seleção.');
       setValidSelection(false);
       onValidationChange?.(false);
       return false;
     }
 
+    if (validSelection !== true) toast.success('Seleção verificada com sucesso');
     setValidSelection(true);
     onValidationChange?.(true);
     return true;
