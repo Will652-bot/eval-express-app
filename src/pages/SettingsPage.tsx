@@ -113,4 +113,81 @@ export const SettingsPage: React.FC = () => {
       });
       if (error) throw error;
 
-      toast.success
+      toast.success('✅ Dados de demonstração excluídos com sucesso');
+      await refetchDemoStatus();
+    } catch (error: any) {
+      toast.error('❌ Erro ao excluir dados: ' + (error.message || 'Erro desconhecido'));
+    } finally {
+      setDemoLoading(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  return (
+    <div className="p-4 space-y-6">
+      <Card>
+        <h2 className="text-lg font-semibold mb-2">Email</h2>
+        <form onSubmit={handleEmailUpdate} className="flex gap-2 items-center">
+          <Input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          />
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Salvando...' : 'Salvar'}
+          </Button>
+        </form>
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold mb-2">Tipo de ensino</h2>
+        <TeacherTypeSelector onSelectionChange={() => {}} />
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold mb-2">Dados de demonstração</h2>
+        <div className="flex gap-4 items-center">
+          <Button onClick={handleCreateDemoData} disabled={demoLoading || checkingDemoStatus}>
+            <Plus className="w-4 h-4 mr-2" />
+            Criar conjunto
+          </Button>
+          <Button
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={demoLoading || checkingDemoStatus}
+            variant="destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Excluir conjunto
+          </Button>
+        </div>
+        {hasDemoData && (
+          <p className="text-sm text-green-600 flex items-center gap-1 mt-2">
+            <CheckCircle className="w-4 h-4" />
+            Conjunto de demonstração ativo
+          </p>
+        )}
+        {hasDemoData === false && (
+          <p className="text-sm text-red-600 flex items-center gap-1 mt-2">
+            <XCircle className="w-4 h-4" />
+            Nenhum conjunto ativo
+          </p>
+        )}
+      </Card>
+
+      <Card>
+        <UpdatePasswordForm />
+      </Card>
+
+      <ConfirmModal
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteDemoData}
+        title="Excluir dados de demonstração"
+        description="Tem certeza que deseja excluir os dados de demonstração?"
+        confirmText="Sim, excluir"
+      />
+    </div>
+  );
+};
+
+export default SettingsPage;
