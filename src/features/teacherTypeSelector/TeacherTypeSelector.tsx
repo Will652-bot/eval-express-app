@@ -36,7 +36,8 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   const fetchTeacherTypes = async () => {
     const { data, error } = await supabase.from('teachertypes').select('*');
     if (error) {
-      toast.error('Erro ao carregar tipos de professor');
+      toast.dismiss('teachertype-error');
+      toast.error('Erro ao carregar tipos de professor', { id: 'teachertype-error' });
     } else {
       setTeacherTypes(data || []);
     }
@@ -49,7 +50,8 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
       .eq('user_id', userId);
 
     if (error) {
-      toast.error('Erro ao carregar seleção anterior');
+      toast.dismiss('selection-error');
+      toast.error('Erro ao carregar seleção anterior', { id: 'selection-error' });
     } else {
       const ids = (data || []).map((entry) => entry.teachertype_id);
       setSelectedTypes(ids);
@@ -60,7 +62,8 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = Array.from(event.target.selectedOptions).map((opt) => opt.value);
     if (selected.length > 2) {
-      toast.error('Você pode selecionar no máximo dois tipos.');
+      toast.dismiss('max-selection');
+      toast.error('Você pode selecionar no máximo dois tipos.', { id: 'max-selection' });
     } else {
       setSelectedTypes(selected);
       onSelectionChange?.(selected);
@@ -79,10 +82,11 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
       .eq('user_id', userId);
 
     if (loadError || !saved || saved.length === 0) {
-      setValidSelection(null); // ⚠️ Ne pas forcer false
+      setValidSelection(null);
       onValidationChange?.(false);
       if (!silent) {
-        toast.error('Nenhum tipo salvo ou erro de leitura.');
+        toast.dismiss('validate-error');
+        toast.error('Nenhum tipo salvo ou erro de leitura.', { id: 'validate-error' });
       }
       return false;
     }
@@ -94,7 +98,8 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
       setValidSelection(false);
       onValidationChange?.(false);
       if (!silent) {
-        toast.error('Tipo inválido detectado! Revise sua seleção.');
+        toast.dismiss('validate-invalid');
+        toast.error('Tipo inválido detectado! Revise sua seleção.', { id: 'validate-invalid' });
       }
       return false;
     }
@@ -102,7 +107,8 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     setValidSelection(true);
     onValidationChange?.(true);
     if (!silent) {
-      toast.success('Seleção verificada com sucesso');
+      toast.dismiss('validate-success');
+      toast.success('Seleção verificada com sucesso', { id: 'validate-success' });
     }
     return true;
   };
@@ -117,15 +123,17 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     });
 
     if (error) {
-      toast.error('Erro ao salvar seleção');
+      toast.dismiss('save-error');
+      toast.error('Erro ao salvar seleção', { id: 'save-error' });
       console.error('[save_teachertype_selection]', error);
       setLoading(false);
       return;
     }
 
-    toast.success('Seleção salva com sucesso');
+    toast.dismiss('save-success');
+    toast.success('Seleção salva com sucesso', { id: 'save-success' });
 
-    const isValid = await validateSelection(false);
+    const isValid = await validateSelection(true);
 
     if (isValid) {
       const { data, error: fetchError } = await supabase
