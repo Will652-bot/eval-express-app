@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { PasswordGenerator } from './PasswordGenerator';
-import { supabase } from '../../lib/supabase'; // Verifique se o caminho está correto
+import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 export const UpdatePasswordForm: React.FC = () => {
@@ -12,13 +12,12 @@ export const UpdatePasswordForm: React.FC = () => {
     confirmPassword: '',
   });
 
-  // Validação da nova senha: mínimo de 8 caracteres, maiúsculas, minúsculas, números e caracteres especiais
   const validatePassword = (password: string) => {
     const hasUpperCase = /[A-Z]/.test(password);
     const hasLowerCase = /[a-z]/.test(password);
     const hasNumbers = /\d/.test(password);
     const hasSpecialChar = /[!@#$%^&*()_+]/.test(password);
-    const isLongEnough = password.length >= 8; // Supabase por padrão exige 6, mas 8 é mais seguro
+    const isLongEnough = password.length >= 8;
     return hasUpperCase && hasLowerCase && hasNumbers && hasSpecialChar && isLongEnough;
   };
 
@@ -26,33 +25,39 @@ export const UpdatePasswordForm: React.FC = () => {
     e.preventDefault();
 
     if (!validatePassword(formData.newPassword)) {
-      toast.error('A nova senha deve conter no mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais.');
+      toast.dismiss('invalid-password');
+      toast.error(
+        'A nova senha deve conter no mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais.',
+        { id: 'invalid-password' }
+      );
       return;
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      toast.error('As senhas não coincidem.');
+      toast.dismiss('mismatch');
+      toast.error('As senhas não coincidem.', { id: 'mismatch' });
       return;
     }
 
     setLoading(true);
     try {
-      // O método updateUser não exige a senha antiga se o usuário já estiver autenticado
       const { error } = await supabase.auth.updateUser({
         password: formData.newPassword,
       });
 
       if (error) throw error;
 
-      toast.success('Senha atualizada com sucesso!');
-      // Limpar os campos após o sucesso
+      toast.dismiss('update-success');
+      toast.success('Senha atualizada com sucesso!', { id: 'update-success' });
+
       setFormData({
         newPassword: '',
         confirmPassword: '',
       });
     } catch (error: any) {
       console.error('Erro ao atualizar senha:', error);
-      toast.error(error.message || 'Erro ao atualizar senha.');
+      toast.dismiss('update-error');
+      toast.error(error.message || 'Erro ao atualizar senha.', { id: 'update-error' });
     } finally {
       setLoading(false);
     }
