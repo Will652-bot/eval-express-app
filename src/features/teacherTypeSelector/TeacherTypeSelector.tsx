@@ -12,10 +12,14 @@ interface TeacherType {
 }
 
 interface TeacherTypeSelectorProps {
+  userId: string;
   onSelectionChange?: (selectedTypes: string[]) => void;
 }
 
-export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({ onSelectionChange }) => {
+export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
+  userId,
+  onSelectionChange,
+}) => {
   const { user } = useAuth();
   const [teacherTypes, setTeacherTypes] = useState<TeacherType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -24,7 +28,7 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({ onSele
   useEffect(() => {
     fetchTeacherTypes();
     fetchUserSelectedTypes();
-  }, [user]);
+  }, [userId]);
 
   const fetchTeacherTypes = async () => {
     const { data, error } = await supabase.from('teachertypes').select('*');
@@ -36,11 +40,11 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({ onSele
   };
 
   const fetchUserSelectedTypes = async () => {
-    if (!user) return;
+    if (!userId) return;
     const { data, error } = await supabase
       .from('users_teachertypes')
       .select('teachertype_id')
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error) {
       toast.error('Erro ao carregar seleção anterior');
@@ -62,10 +66,10 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({ onSele
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     const { error } = await supabase.rpc('save_teachertype_selection', {
-      p_user_id: user.id,
+      p_user_id: userId,
       p_selected_types: selectedTypes,
     });
 
@@ -82,4 +86,37 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({ onSele
     <div className="mb-6">
       <div className="flex items-center justify-between mb-1">
         <Label htmlFor="teacherTypeSelect">Qual seu tipo de ensino? (máx. 2)</Label>
-        <span class
+        <span className="text-sm text-gray-600 italic">
+          {selectedTypes.length > 0
+            ? teacherTypes
+                .filter((t) => selectedTypes.includes(t.id))
+                .map((t) => t.teachertype)
+                .join('; ')
+            : 'Nenhum selecionado'}
+        </span>
+      </div>
+
+      <select
+        id="teacherTypeSelect"
+        multiple
+        value={selectedTypes}
+        onChange={handleChange}
+        className="w-full max-h-40 overflow-auto border rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+      >
+        {teacherTypes.map((type) => (
+          <option key={type.id} value={type.id}>
+            {type.teachertype}
+          </option>
+        ))}
+      </select>
+
+      <Button
+        className="mt-2"
+        onClick={handleSave}
+        disabled={loading || selectedTypes.length === 0}
+      >
+        {loading ? 'Salvando...' : 'Salvar escolha'}
+      </Button>
+    </div>
+  );
+};
