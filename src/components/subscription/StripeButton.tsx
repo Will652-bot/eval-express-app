@@ -22,26 +22,33 @@ export const StripeButton: React.FC<StripeButtonProps> = ({ className }) => {
     return expirationDate <= new Date();
   }, [user]);
 
-  const isBoltPreview = window.location.hostname.includes('webcontainer-api.io') || 
+  const isBoltPreview = window.location.hostname.includes('webcontainer-api.io') ||
                         window.location.hostname.includes('bolt.new');
 
   const handleSubscribe = async () => {
     if (!user?.id || !user?.email) {
-      toast.error('Usuário não autenticado ou email não disponível');
+      toast.dismiss('unauthenticated');
+      toast.error('Usuário não autenticado ou email não disponível', { id: 'unauthenticated' });
       return;
     }
 
     if (isBoltPreview) {
-      toast.error('Pagamento indisponível no ambiente de preview. Use a versão publicada.');
+      toast.dismiss('bolt-preview');
+      toast.error('Pagamento indisponível no ambiente de preview. Use a versão publicada.', {
+        id: 'bolt-preview',
+      });
       return;
     }
 
     setProcessing(true);
-    
+
     try {
       const sessionResult = await supabase.auth.getSession();
       const token = sessionResult.data.session?.access_token;
-      if (!token) throw new Error('Token de sessão não encontrado.');
+      if (!token) {
+        toast.dismiss('session-error');
+        throw new Error('Token de sessão não encontrado.');
+      }
 
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout-link`;
 
@@ -67,12 +74,19 @@ export const StripeButton: React.FC<StripeButtonProps> = ({ className }) => {
 
     } catch (error: any) {
       console.error('❌ Erro StripeButton:', error);
+
+      toast.dismiss('stripe-error');
+
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        toast.error('Erro de conexão. Verifique sua internet ou use a versão deployada.');
+        toast.error('Erro de conexão. Verifique sua internet ou use a versão deployada.', {
+          id: 'stripe-error',
+        });
       } else if (error.message.includes('CORS')) {
-        toast.error('Erro de CORS. Teste na versão publicada.');
+        toast.error('Erro de CORS. Teste na versão publicada.', { id: 'stripe-error' });
       } else {
-        toast.error(`Erro ao iniciar pagamento: ${error.message || 'Tente novamente.'}`);
+        toast.error(`Erro ao iniciar pagamento: ${error.message || 'Tente novamente.'}`, {
+          id: 'stripe-error',
+        });
       }
     } finally {
       setProcessing(false);
