@@ -1,17 +1,27 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 
+/**
+ * Hook personnalisé pour récupérer les teacher types sélectionnés d'un utilisateur.
+ */
 export function useSelectedTeacherTypes(userId: string) {
   const [selectedTeacherTypes, setSelectedTeacherTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  /**
+   * Fonction de récupération des teacher types sélectionnés
+   */
   const fetchSelectedTeacherTypes = async () => {
-    if (!userId) return;
+    if (!userId) {
+      setSelectedTeacherTypes([]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('users_teachertypes') // ✅ nom corrigé
+        .from('users_teachertypes')
         .select('teachertype_id')
         .eq('user_id', userId);
 
