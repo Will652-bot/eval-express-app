@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import toast from 'react-hot-toast';
+import { CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface TeacherType {
   id: string;
@@ -22,6 +23,7 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   const [teacherTypes, setTeacherTypes] = useState<TeacherType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [validSelection, setValidSelection] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -63,13 +65,14 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     }
   };
 
-  const validateSelection = async () => {
+  const validateSelection = async (): Promise<boolean> => {
     const { data: saved, error: loadError } = await supabase
       .from('users_teachertypes')
       .select('teachertype_id')
       .eq('user_id', userId);
 
     if (loadError || !saved || saved.length === 0) {
+      setValidSelection(false);
       toast.error('Nenhum tipo salvo ou erro de leitura.');
       return false;
     }
@@ -78,10 +81,12 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     const invalidDetected = saved.some((entry) => !validTypeIds.includes(entry.teachertype_id));
 
     if (invalidDetected) {
+      setValidSelection(false);
       toast.error('Tipo inválido detectado! Revise sua seleção.');
       return false;
     }
 
+    setValidSelection(true);
     toast.success('Seleção verificada com sucesso');
     return true;
   };
@@ -89,6 +94,7 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   const handleSave = async () => {
     if (!userId) return;
     setLoading(true);
+
     const { error } = await supabase.rpc('save_teachertype_selection', {
       p_user_id: userId,
       p_selected_types: selectedTypes,
@@ -97,9 +103,25 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     if (error) {
       toast.error('Erro ao salvar seleção');
       console.error('[save_teachertype_selection]', error);
-    } else {
-      toast.success('Seleção salva com sucesso');
-      await validateSelection(); // ⬅️ Nouvelle vérification juste après enregistrement
+      setLoading(false);
+      return;
+    }
+
+    toast.success('Seleção salva com sucesso');
+
+    const isValid = await validateSelection();
+
+    if (isValid) {
+      const { data, error: fetchError } = await supabase
+        .from('view_user_selected_teachertypes')
+        .select('teachertype_id')
+        .eq('user_id', userId);
+
+      if (!fetchError && data) {
+        const updatedIds = data.map((entry) => entry.teachertype_id);
+        setSelectedTypes(updatedIds);
+        onSelectionChange?.(updatedIds);
+      }
     }
 
     setLoading(false);
@@ -109,13 +131,23 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     <div className="mb-6">
       <div className="flex items-center justify-between mb-1">
         <Label htmlFor="teacherTypeSelect">Qual seu tipo de ensino? (máx. 2)</Label>
-        <span className="text-sm text-gray-600 italic">
+        <span className="text-sm text-gray-600 italic flex items-center gap-1">
           {selectedTypes.length > 0
             ? teacherTypes
                 .filter((t) => selectedTypes.includes(t.id))
                 .map((t) => t.teachertype)
                 .join('; ')
             : 'Nenhum selecionado'}
+          {validSelection === true && (
+            <span className="text-green-600 flex items-center gap-1 ml-2">
+              <CheckCircle className="w-4 h-4" /> Seleção ativa
+            </span>
+          )}
+          {validSelection === false && (
+            <span className="text-red-600 flex items-center gap-1 ml-2">
+              <AlertTriangle className="w-4 h-4" /> Seleção inválida
+            </span>
+          )}
         </span>
       </div>
 
