@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
-import { Select } from '@/components/ui/Select';
 import toast from 'react-hot-toast';
 
 interface TeacherType {
@@ -21,14 +20,14 @@ export const TeacherTypeSelector: React.FC = () => {
   useEffect(() => {
     fetchTeacherTypes();
     fetchUserSelectedTypes();
-  }, []);
+  }, [user]);
 
   const fetchTeacherTypes = async () => {
     const { data, error } = await supabase.from('teachertypes').select('*');
     if (error) {
       toast.error('Erro ao carregar tipos de professor');
     } else {
-      setTeacherTypes(data);
+      setTeacherTypes(data || []);
     }
   };
 
@@ -42,7 +41,7 @@ export const TeacherTypeSelector: React.FC = () => {
     if (error) {
       toast.error('Erro ao carregar seleção anterior');
     } else {
-      setSelectedTypes(data.map((entry) => entry.teachertype_id));
+      setSelectedTypes((data || []).map((entry) => entry.teachertype_id));
     }
   };
 
@@ -60,11 +59,12 @@ export const TeacherTypeSelector: React.FC = () => {
     setLoading(true);
     const { error } = await supabase.rpc('save_teachertype_selection', {
       p_user_id: user.id,
-      p_teachertype_ids: selectedTypes,
+      p_selected_types: selectedTypes, // ✅ nom corrigé
     });
 
     if (error) {
       toast.error('Erro ao salvar seleção');
+      console.error('[save_teachertype_selection]', error);
     } else {
       toast.success('Seleção salva com sucesso');
     }
@@ -73,13 +73,24 @@ export const TeacherTypeSelector: React.FC = () => {
 
   return (
     <div className="mb-6">
-      <Label htmlFor="teacherTypeSelect">Qual seu tipo de ensino? (máx. 2)</Label>
+      <div className="flex items-center justify-between mb-1">
+        <Label htmlFor="teacherTypeSelect">Qual seu tipo de ensino? (máx. 2)</Label>
+        <span className="text-sm text-gray-600 italic">
+          {selectedTypes.length > 0
+            ? teacherTypes
+                .filter((t) => selectedTypes.includes(t.id))
+                .map((t) => t.teachertype)
+                .join('; ')
+            : 'Nenhum selecionado'}
+        </span>
+      </div>
+
       <select
         id="teacherTypeSelect"
         multiple
         value={selectedTypes}
         onChange={handleChange}
-        className="mt-1 w-full h-28 border rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+        className="w-full max-h-40 overflow-auto border rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
       >
         {teacherTypes.map((type) => (
           <option key={type.id} value={type.id}>
@@ -87,6 +98,7 @@ export const TeacherTypeSelector: React.FC = () => {
           </option>
         ))}
       </select>
+
       <Button
         className="mt-2"
         onClick={handleSave}
