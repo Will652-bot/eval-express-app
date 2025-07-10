@@ -14,11 +14,13 @@ interface TeacherType {
 interface TeacherTypeSelectorProps {
   userId: string;
   onSelectionChange?: (selectedTypes: string[]) => void;
+  onValidationChange?: (isValid: boolean) => void; // ✅ Ajouté
 }
 
 export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   userId,
   onSelectionChange,
+  onValidationChange, // ✅ Ajouté
 }) => {
   const [teacherTypes, setTeacherTypes] = useState<TeacherType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -73,6 +75,7 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
 
     if (loadError || !saved || saved.length === 0) {
       setValidSelection(false);
+      onValidationChange?.(false); // ✅ transmis au parent
       toast.error('Nenhum tipo salvo ou erro de leitura.');
       return false;
     }
@@ -82,11 +85,13 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
 
     if (invalidDetected) {
       setValidSelection(false);
+      onValidationChange?.(false); // ✅ transmis au parent
       toast.error('Tipo inválido detectado! Revise sua seleção.');
       return false;
     }
 
     setValidSelection(true);
+    onValidationChange?.(true); // ✅ transmis au parent
     toast.success('Seleção verificada com sucesso');
     return true;
   };
