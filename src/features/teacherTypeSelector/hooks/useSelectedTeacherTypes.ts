@@ -7,10 +7,11 @@ export function useSelectedTeacherTypes(userId: string) {
 
   const fetchSelectedTeacherTypes = async () => {
     if (!userId) return;
+
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('user_teacher_types')
+        .from('users_teachertypes') // ✅ nom corrigé
         .select('teachertype_id')
         .eq('user_id', userId);
 
@@ -18,11 +19,12 @@ export function useSelectedTeacherTypes(userId: string) {
         console.error('❌ Erro ao carregar teacherTypes:', error.message);
         setSelectedTeacherTypes([]);
       } else {
-        const ids = data.map((item) => item.teachertype_id);
+        const ids = data?.map((item) => item.teachertype_id) ?? [];
         setSelectedTeacherTypes(ids);
       }
     } catch (err) {
       console.error('❌ Erro inesperado ao buscar teacherTypes:', err);
+      setSelectedTeacherTypes([]);
     } finally {
       setLoading(false);
     }
