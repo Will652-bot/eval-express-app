@@ -5,7 +5,7 @@ import { Input } from '../components/ui/Input';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Database, Trash2, Plus, Info, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm';
 import { TeacherTypeSelector } from '../features/teacherTypeSelector/TeacherTypeSelector';
@@ -20,7 +20,8 @@ export const SettingsPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [formData, setFormData] = useState({ email: user?.email || '' });
 
-  const { selectedTeacherTypes, refetchSelectedTeacherTypes } = useSelectedTeacherTypes(user?.id || '');
+  const { refetchSelectedTeacherTypes } = useSelectedTeacherTypes(user?.id || '');
+  const [selectedTeacherTypesLocal, setSelectedTeacherTypesLocal] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -72,7 +73,7 @@ export const SettingsPage: React.FC = () => {
       toast.error('Usuário não autenticado');
       return;
     }
-    if (selectedTeacherTypes.length === 0 || selectedTeacherTypes.length > 2) {
+    if (selectedTeacherTypesLocal.length === 0 || selectedTeacherTypesLocal.length > 2) {
       toast.error('Selecione 1 ou 2 tipos de ensino');
       return;
     }
@@ -81,7 +82,7 @@ export const SettingsPage: React.FC = () => {
       const { error } = await supabase.rpc('generate_demo_data_by_type', {
         p_user_id: user.id,
         p_user_email: user.email,
-        p_teachertype_ids: selectedTeacherTypes,
+        p_teachertype_ids: selectedTeacherTypesLocal,
       });
       if (error) throw error;
 
@@ -100,7 +101,7 @@ export const SettingsPage: React.FC = () => {
       toast.error('Usuário não autenticado');
       return;
     }
-    if (selectedTeacherTypes.length === 0) {
+    if (selectedTeacherTypesLocal.length === 0) {
       toast.error('Selecione pelo menos um tipo de ensino');
       return;
     }
@@ -109,7 +110,7 @@ export const SettingsPage: React.FC = () => {
       const { error } = await supabase.rpc('delete_demo_data_by_type', {
         p_user_id: user.id,
         p_user_email: user.email,
-        p_teachertype_ids: selectedTeacherTypes,
+        p_teachertype_ids: selectedTeacherTypesLocal,
       });
       if (error) throw error;
 
@@ -141,15 +142,21 @@ export const SettingsPage: React.FC = () => {
 
       <Card>
         <h2 className="text-lg font-semibold mb-2">Tipo de ensino</h2>
-        <TeacherTypeSelector onSelectionChange={() => {}} />
+        <TeacherTypeSelector
+          userId={user?.id || ''}
+          onSelectionChange={(types) => setSelectedTeacherTypesLocal(types)}
+        />
       </Card>
 
       <Card>
         <h2 className="text-lg font-semibold mb-2">Dados de demonstração</h2>
         <div className="flex gap-4 items-center">
-          <Button onClick={handleCreateDemoData} disabled={demoLoading || checkingDemoStatus}>
+          <Button
+            onClick={handleCreateDemoData}
+            disabled={demoLoading || checkingDemoStatus}
+          >
             <Plus className="w-4 h-4 mr-2" />
-            Criar conjunto
+            Criar um conjunto de dados de demonstração
           </Button>
           <Button
             onClick={() => setShowDeleteConfirm(true)}
@@ -157,7 +164,7 @@ export const SettingsPage: React.FC = () => {
             variant="destructive"
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            Excluir conjunto
+            Excluir o conjunto de dados de demonstração
           </Button>
         </div>
         {hasDemoData && (
