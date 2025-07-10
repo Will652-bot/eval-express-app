@@ -80,10 +80,12 @@ export const SettingsPage: React.FC = () => {
       toast.error('Usuário não autenticado');
       return;
     }
-    if (selectedTeacherTypesLocal.length === 0 || selectedTeacherTypesLocal.length > 2) {
-      toast.error('Selecione 1 ou 2 tipos de ensino');
+
+    if (validTeacherSelection !== true) {
+      toast.error('Selecione um tipo de ensino válido antes de continuar');
       return;
     }
+
     setDemoLoading(true);
     try {
       const { error } = await supabase.rpc('generate_demo_data_by_type', {
@@ -108,10 +110,12 @@ export const SettingsPage: React.FC = () => {
       toast.error('Usuário não autenticado');
       return;
     }
-    if (selectedTeacherTypesLocal.length === 0) {
-      toast.error('Selecione pelo menos um tipo de ensino');
+
+    if (validTeacherSelection !== true) {
+      toast.error('Seleção inválida. Verifique os tipos de ensino antes de continuar.');
       return;
     }
+
     setDemoLoading(true);
     try {
       const { error } = await supabase.rpc('delete_demo_data_by_type', {
@@ -173,15 +177,25 @@ export const SettingsPage: React.FC = () => {
         <div className="flex gap-4 items-center">
           <Button
             onClick={handleCreateDemoData}
-            disabled={demoLoading || checkingDemoStatus}
+            disabled={demoLoading || checkingDemoStatus || validTeacherSelection !== true}
+            title={
+              validTeacherSelection !== true
+                ? 'Seleção inválida: escolha 1 ou 2 tipos válidos'
+                : undefined
+            }
           >
             <Plus className="w-4 h-4 mr-2" />
             Criar um conjunto de dados de demonstração
           </Button>
           <Button
             onClick={() => setShowDeleteConfirm(true)}
-            disabled={demoLoading || checkingDemoStatus}
+            disabled={demoLoading || checkingDemoStatus || validTeacherSelection !== true}
             variant="destructive"
+            title={
+              validTeacherSelection !== true
+                ? 'Seleção inválida: escolha tipos válidos antes de excluir'
+                : undefined
+            }
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Excluir o conjunto de dados de demonstração
