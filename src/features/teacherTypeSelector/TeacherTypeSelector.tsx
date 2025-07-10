@@ -33,12 +33,6 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     fetchUserSelectedTypes();
   }, [userId]);
 
-  useEffect(() => {
-    if (teacherTypes.length > 0) {
-      validateSelection(); // attendre la fin du chargement
-    }
-  }, [teacherTypes]);
-
   const fetchTeacherTypes = async () => {
     const { data, error } = await supabase.from('teachertypes').select('*');
     if (error) {
@@ -73,9 +67,9 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     }
   };
 
-  const validateSelection = async (): Promise<boolean> => {
+  const validateSelection = async (silent = false): Promise<boolean> => {
     if (teacherTypes.length === 0) {
-      console.warn('[validateSelection] Liste vide, validation annulée.');
+      if (!silent) console.warn('[validateSelection] Lista de referência ainda vazia.');
       return false;
     }
 
@@ -85,9 +79,11 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
       .eq('user_id', userId);
 
     if (loadError || !saved || saved.length === 0) {
-      if (validSelection !== false) toast.error('Nenhum tipo salvo ou erro de leitura.');
-      setValidSelection(false);
+      setValidSelection(null); // ⚠️ Ne pas forcer false
       onValidationChange?.(false);
+      if (!silent) {
+        toast.error('Nenhum tipo salvo ou erro de leitura.');
+      }
       return false;
     }
 
@@ -95,15 +91,19 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
     const invalidDetected = saved.some((entry) => !validTypeIds.includes(entry.teachertype_id));
 
     if (invalidDetected) {
-      if (validSelection !== false) toast.error('Tipo inválido detectado! Revise sua seleção.');
       setValidSelection(false);
       onValidationChange?.(false);
+      if (!silent) {
+        toast.error('Tipo inválido detectado! Revise sua seleção.');
+      }
       return false;
     }
 
-    if (validSelection !== true) toast.success('Seleção verificada com sucesso');
     setValidSelection(true);
     onValidationChange?.(true);
+    if (!silent) {
+      toast.success('Seleção verificada com sucesso');
+    }
     return true;
   };
 
@@ -125,7 +125,7 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
 
     toast.success('Seleção salva com sucesso');
 
-    const isValid = await validateSelection();
+    const isValid = await validateSelection(false);
 
     if (isValid) {
       const { data, error: fetchError } = await supabase
@@ -154,17 +154,17 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
                 .map((t) => t.teachertype)
                 .join('; ')
             : 'Nenhum selecionado'}
-          {validSelection === true && (
-            <span className="text-green-600 flex items-center gap-1 ml-2">
-              <CheckCircle className="w-4 h-4" /> Seleção ativa
-            </span>
-          )}
-          {validSelection === false && (
-            <span className="text-red-600 flex items-center gap-1 ml-2">
-              <AlertTriangle className="w-4 h-4" /> Seleção inválida
-            </span>
-          )}
         </span>
+        {validSelection === true && (
+          <span className="text-green-600 flex items-center gap-1 text-sm ml-2">
+            <CheckCircle className="w-4 h-4" /> Seleção ativa
+          </span>
+        )}
+        {validSelection === false && selectedTypes.length > 0 && (
+          <span className="text-red-600 flex items-center gap-1 text-sm ml-2">
+            <AlertTriangle className="w-4 h-4" /> Seleção inválida
+          </span>
+        )}
       </div>
 
       <select
