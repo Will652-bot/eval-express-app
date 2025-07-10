@@ -1,7 +1,6 @@
 // src/features/teacherTypeSelector/TeacherTypeSelector.tsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
 import toast from 'react-hot-toast';
@@ -20,12 +19,12 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   userId,
   onSelectionChange,
 }) => {
-  const { user } = useAuth();
   const [teacherTypes, setTeacherTypes] = useState<TeacherType[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!userId) return;
     fetchTeacherTypes();
     fetchUserSelectedTypes();
   }, [userId]);
@@ -40,9 +39,8 @@ export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({
   };
 
   const fetchUserSelectedTypes = async () => {
-    if (!userId) return;
     const { data, error } = await supabase
-      .from('users_teachertypes')
+      .from('view_user_selected_teachertypes')
       .select('teachertype_id')
       .eq('user_id', userId);
 
