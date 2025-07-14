@@ -181,24 +181,30 @@ export const CustomReport: React.FC = () => {
 
       // Query evaluations with evaluation_title_id filter
       let query = supabase
-        .from('evaluations')
-        .select(`
-          *,
-          student:students(first_name, last_name),
-          criteria:criteria(name, min_value, max_value),
-          evaluation_title:evaluation_titles(title)
-        `)
-        .eq('teacher_id', user?.id)
-        .in('class_id', selectedClasses)
-        .in('student_id', selectedStudents)
-        .in('criterion_id', selectedCriteria)
-        .gte('date', startDate || '1900-01-01')
-        .lte('date', endDate || '2100-12-31')
-        .not('value', 'eq', 0);
+  .from('evaluations')
+  .select(`
+    *,
+    student:students(first_name, last_name),
+    criteria:criteria(name, min_value, max_value),
+    evaluation_title:evaluation_titles(title)
+  `)
+  .eq('teacher_id', user?.id)
+  .gte('date', startDate || '1900-01-01')
+  .lte('date', endDate || '2100-12-31')
+  .not('value', 'eq', 0);
 
-      if (selectedTitleIds.length > 0) {
-        query = query.in('evaluation_title_id', selectedTitleIds);
-      }
+if (selectedClasses.length > 0) {
+  query = query.in('class_id', selectedClasses);
+}
+if (selectedStudents.length > 0) {
+  query = query.in('student_id', selectedStudents);
+}
+if (selectedCriteria.length > 0) {
+  query = query.in('criterion_id', selectedCriteria);
+}
+if (selectedTitleIds.length > 0) {
+  query = query.in('evaluation_title_id', selectedTitleIds);
+}
 
       const [evaluationsResult, totalsResult] = await Promise.all([
         query,
