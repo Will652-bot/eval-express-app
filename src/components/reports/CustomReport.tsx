@@ -170,61 +170,46 @@ export const CustomReport: React.FC = () => {
   };
 
   const generatePivotData = useCallback(async () => {
- // ✅ Bloc préventif : empêche les requêtes si aucun filtre pertinent n'est actif
-const isTurmaEmpty = selectedClasses.length === 0;
-const isTituloEmpty = selectedTitleIds.length === 0;
-const isCriterioEmpty = selectedCriteria.length === 0;
-const isAlunoEmpty = selectedStudents.length === 0;
+    // ✅ DÉBUT DE LA CORRECTION POUR generatePivotData
 
-const hasFiltersActive =
-  selectedClasses.length > 0 ||
-  selectedTitleIds.length > 0 ||
-  selectedCriteria.length > 0 ||
-  selectedStudents.length > 0;
-
-if (!hasFiltersActive) {
-  setPivotData({});
-  setVisibleCriteria([]);
-  return;
-}
-
+    // Bloc préventif : vide le rapport si aucun filtre ESSENTIEL n'est sélectionné.
+    // Cela garantit un comportement prévisible : pas de données si pas de sélection.
+    // Cela corrige les régressions où le rapport devrait être vide (car aucun filtre actif)
+    // et aussi celles où "toutes les données" apparaissaient de manière inattendue.
+    if (selectedClasses.length === 0 ||
+        selectedStudents.length === 0 ||
+        selectedCriteria.length === 0 ||
+        selectedTitleIds.length === 0) {
+      setPivotData({});
+      setStudentTotals({});
+      setVisibleCriteria([]);
+      setStudentEvaluationTitles({});
+      setLoading(false); // S'assurer que le chargement se termine
+      return; // Sortir immédiatement de la fonction
+    }
 
     try {
       setLoading(true);
 
-      // Query evaluations with evaluation_title_id filter
-let query = supabase
-  .from('evaluations')
-  .select(`
-    *,
-    student:students(first_name, last_name),
-    criteria:criteria(name, min_value, max_value),
-    evaluation_title:evaluation_titles(title)
-  `)
-  .eq('teacher_id', user?.id)
-  .gte('date', startDate || '1900-01-01')
-  .lte('date', endDate || '2100-12-31')
-  .not('value', 'eq', 0);
+      let query = supabase
+        .from('evaluations')
+        .select(`
+          *,
+          student:students(first_name, last_name),
+          criteria:criteria(name, min_value, max_value),
+          evaluation_title:evaluation_titles(title)
+        `)
+        .eq('teacher_id', user?.id)
+        .gte('date', startDate || '1900-01-01')
+        .lte('date', endDate || '2100-12-31')
+        .not('value', 'eq', 0);
 
-// 🛡️ Protection si aucun filtre actif
-if (selectedClasses.length === 0 && selectedStudents.length === 0 && selectedCriteria.length === 0 && selectedTitleIds.length === 0) {
-  setPivotData([]); // ou afficher un message "Aucune donnée sélectionnée"
-  return;
-}
-
-// Application des filtres
-if (selectedClasses.length > 0) {
-  query = query.in('class_id', selectedClasses);
-}
-if (selectedStudents.length > 0) {
-  query = query.in('student_id', selectedStudents);
-}
-if (selectedCriteria.length > 0) {
-  query = query.in('criterion_id', selectedCriteria);
-}
-if (selectedTitleIds.length > 0) {
-  query = query.in('evaluation_title_id', selectedTitleIds);
-}
+      // ✅ Application directe des filtres IN.
+      // Nous savons que ces tableaux ne sont pas vides grâce à la vérification faite au début de la fonction.
+      query = query.in('class_id', selectedClasses);
+      query = query.in('student_id', selectedStudents);
+      query = query.in('criterion_id', selectedCriteria);
+      query = query.in('evaluation_title_id', selectedTitleIds);
 
 
       const [evaluationsResult, totalsResult] = await Promise.all([
@@ -232,7 +217,7 @@ if (selectedTitleIds.length > 0) {
         supabase
           .from('student_total_with_formatting')
           .select('*')
-          .eq('teacher_id', user?.id)
+          .eq('teacher_id', user?.id) // S'assurer que ce filtre est appliqué ici aussi
           .in('student_id', selectedStudents)
       ]);
 
@@ -311,16 +296,19 @@ if (selectedTitleIds.length > 0) {
       setLoading(false);
     }
   }, [selectedClasses, selectedStudents, selectedCriteria, startDate, endDate, selectedTitleIds, students, criteria, evaluationTitles, user?.id]);
+  // ✅ FIN DE LA CORRECTION POUR generatePivotData
 
   useEffect(() => {
     fetchInitialData();
   }, [fetchInitialData]);
 
+  // ✅ DÉBUT DE LA CORRECTION POUR useEffect déclencheur (lignes 224-228 de l'original)
   useEffect(() => {
-    if (selectedClasses.length > 0 && selectedStudents.length > 0 && selectedCriteria.length > 0) {
-      generatePivotData();
-    }
-  }, [generatePivotData]);
+    // Appelle generatePivotData chaque fois que les filtres pertinents changent.
+    // La logique de savoir si le rapport doit être vide est maintenant entièrement dans generatePivotData.
+    generatePivotData();
+  }, [generatePivotData, selectedClasses, selectedStudents, selectedCriteria, selectedTitleIds, startDate, endDate]);
+  // ✅ FIN DE LA CORRECTION POUR useEffect déclencheur
 
   const handleSelectAll = useCallback((type: 'classes' | 'students' | 'criteria' | 'titles') => {
     switch (type) {
@@ -664,9 +652,8 @@ if (selectedTitleIds.length > 0) {
                 ) : Object.keys(pivotData).length === 0 ? (
                   <tr>
                     <td colSpan={visibleCriteria.length + 2} className="px-3 sm:px-6 py-4 text-center text-gray-500">
-                      {selectedTitleIds.length === 0 
-                        ? "Selecione pelo menos um título de avaliação para visualizar os dados"
-                        : "Nenhum dado encontrado para os filtros selecionados"}
+                      {/* ✅ Message mis à jour pour être plus générique et couvrir tous les cas de filtres vides */}
+                      Nenhum dado encontrado para os filtros selecionados.
                     </td>
                   </tr>
                 ) : (
