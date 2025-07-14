@@ -180,7 +180,7 @@ export const CustomReport: React.FC = () => {
       setLoading(true);
 
       // Query evaluations with evaluation_title_id filter
-      let query = supabase
+let query = supabase
   .from('evaluations')
   .select(`
     *,
@@ -193,6 +193,13 @@ export const CustomReport: React.FC = () => {
   .lte('date', endDate || '2100-12-31')
   .not('value', 'eq', 0);
 
+// 🛡️ Protection si aucun filtre actif
+if (selectedClasses.length === 0 && selectedStudents.length === 0 && selectedCriteria.length === 0 && selectedTitleIds.length === 0) {
+  setPivotData([]); // ou afficher un message "Aucune donnée sélectionnée"
+  return;
+}
+
+// Application des filtres
 if (selectedClasses.length > 0) {
   query = query.in('class_id', selectedClasses);
 }
@@ -205,6 +212,7 @@ if (selectedCriteria.length > 0) {
 if (selectedTitleIds.length > 0) {
   query = query.in('evaluation_title_id', selectedTitleIds);
 }
+
 
       const [evaluationsResult, totalsResult] = await Promise.all([
         query,
