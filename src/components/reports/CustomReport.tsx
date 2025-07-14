@@ -170,11 +170,24 @@ export const CustomReport: React.FC = () => {
   };
 
   const generatePivotData = useCallback(async () => {
-    if (selectedTitleIds.length === 0) {
-      setPivotData({});
-      setVisibleCriteria([]);
-      return;
-    }
+ // ✅ Bloc préventif : empêche les requêtes si aucun filtre pertinent n'est actif
+const isTurmaEmpty = selectedClasses.length === 0;
+const isTituloEmpty = selectedTitleIds.length === 0;
+const isCriterioEmpty = selectedCriteria.length === 0;
+const isAlunoEmpty = selectedStudents.length === 0;
+
+const hasFiltersActive =
+  selectedClasses.length > 0 ||
+  selectedTitleIds.length > 0 ||
+  selectedCriteria.length > 0 ||
+  selectedStudents.length > 0;
+
+if (!hasFiltersActive) {
+  setPivotData({});
+  setVisibleCriteria([]);
+  return;
+}
+
 
     try {
       setLoading(true);
