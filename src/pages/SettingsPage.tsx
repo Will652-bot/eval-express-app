@@ -183,6 +183,10 @@ export const SettingsPage: React.FC = () => {
     (typeId) => !existingDemoTeachertypes.includes(typeId)
   );
 
+  const enableDeleteButton = selectedTeacherTypesLocal.some(
+    (typeId) => existingDemoTeachertypes.includes(typeId)
+  );
+
   return (
     <div className="p-4 space-y-6">
       <Card>
@@ -232,11 +236,13 @@ export const SettingsPage: React.FC = () => {
           </Button>
           <Button
             onClick={() => setShowDeleteConfirm(true)}
-            disabled={demoLoading || checkingDemoStatus || validTeacherSelection !== true}
+            disabled={demoLoading || checkingDemoStatus || validTeacherSelection !== true || !enableDeleteButton}
             variant="destructive"
             title={
               validTeacherSelection !== true
                 ? 'Seleção inválida: escolha tipos válidos antes de excluir'
+                : !enableDeleteButton
+                ? 'Nenhum conjunto ativo para excluir'
                 : undefined
             }
           >
@@ -244,19 +250,24 @@ export const SettingsPage: React.FC = () => {
             Excluir o conjunto de dados de demonstração
           </Button>
         </div>
-        {hasDemoData && (
-          <p className="text-sm text-green-600 flex items-center gap-1 mt-2">
-            <CheckCircle className="w-4 h-4" />
-            Conjunto de demonstração ativo
-          </p>
+        {selectedTeacherTypesLocal.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {selectedTeacherTypesLocal.map((typeId) => (
+              <p key={typeId} className="text-sm flex items-center gap-1">
+                {existingDemoTeachertypes.includes(typeId) ? (
+                  <span className="text-green-600">
+                    <CheckCircle className="w-4 h-4" /> Conjunto ativo para tipo {typeId}
+                  </span>
+                ) : (
+                  <span className="text-yellow-600">
+                    <XCircle className="w-4 h-4" /> Nenhum conjunto ativo para tipo {typeId}
+                  </span>
+                )}
+              </p>
+            ))}
+          </div>
         )}
-        {hasDemoData === false && selectedTeacherTypesLocal.length > 0 && (
-          <p className="text-sm text-yellow-600 flex items-center gap-1 mt-2">
-            <XCircle className="w-4 h-4" />
-            Nenhum conjunto de demonstração ativo para os tipos selecionados
-          </p>
-        )}
-        {hasDemoData === false && selectedTeacherTypesLocal.length === 0 && (
+        {selectedTeacherTypesLocal.length === 0 && (
           <p className="text-sm text-gray-500 mt-2">Nenhum tipo de ensino selecionado</p>
         )}
       </Card>
