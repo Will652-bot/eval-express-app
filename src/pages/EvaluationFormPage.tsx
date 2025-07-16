@@ -971,3 +971,96 @@ export const EvaluationFormPage: React.FC = () => {
                     <thead className="bg-gray-50">
                       <tr>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Aluno
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Valor
+                        </th>
+                        {/* NEW: Comments Header */}
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Comentários
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {sortedEvaluations.map((evaluation) => {
+                        const hasValue = evaluation.value && evaluation.value.trim() !== '';
+                        return (
+                          <tr key={evaluation.student_id}>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${hasValue ? 'font-bold' : ''} text-gray-900`}>
+                              {evaluation.student_name}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-40">
+                              <input
+                                type="number"
+                                step="0.1"
+                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50"
+                                value={evaluation.value}
+                                onChange={(e) => handleValueChange(evaluation.student_id, e.target.value)}
+                                min={selectedCriterion?.min_value}
+                                max={selectedCriterion?.max_value}
+                                placeholder={selectedCriterion ? `${selectedCriterion.min_value}-${selectedCriterion.max_value}` : ''}
+                                disabled={false} 
+                              />
+                            </td>
+                            {/* NEW: Comments Input for each student */}
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-full">
+                              <textarea
+                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50"
+                                rows={2}
+                                value={evaluation.comments}
+                                onChange={(e) => handleCommentChange(evaluation.student_id, e.target.value)}
+                                placeholder="Adicionar commentaire..."
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-between items-center">
+            {/* Delete button - only show when editing */}
+            {isEditing && (
+              <Button
+                type="button"
+                variant="danger"
+                onClick={handleDeleteClick}
+                isLoading={deleting}
+                leftIcon={<Trash2 className="h-4 w-4" />}
+              >
+                Excluir Avaliação
+              </Button>
+            )}
+
+            <div className={`flex space-x-3 ${!isEditing ? 'ml-auto' : ''}`}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/evaluations')}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" isLoading={loading}>
+                {isEditing ? 'Salvar Alterações' : 'Créer Avaliações'}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </Card>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDialog({ isOpen: false, title: '', message: '' })}
+      />
+    </div>
+  );
+};
