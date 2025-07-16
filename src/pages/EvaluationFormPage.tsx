@@ -6,9 +6,9 @@ import { Input } from '../components/ui/Input';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { FileText, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext'; // Gardez votre chemin correct pour AuthContext
+import { useAuth } from '../contexts/AuthContext'; 
 import toast from 'react-hot-toast';
-import { v4 as uuidv4 } from 'uuid'; // <-- 1. AJOUTEZ CETTE IMPORTATION
+// import { v4 as uuidv4 } from 'uuid'; // <-- ASSUREZ-VOUS QUE CETTE LIGNE EST COMMENTÉE OU SUPPRIMÉE
 
 // Interface for evaluation titles
 interface EvaluationTitle {
@@ -193,7 +193,8 @@ export const EvaluationFormPage: React.FC = () => {
       if (error && error.code !== 'PGRST116') throw error;
 
       setAttachedPDF(data);
-    } catch (error: any) {
+    }
+    catch (error: any) {
       console.error('Error checking for attached PDF:', error.message);
       toast.error('Erro ao verificar anexos');
     } finally {
@@ -327,7 +328,7 @@ export const EvaluationFormPage: React.FC = () => {
         } 
       } catch (err: any) {
         console.error("Erreur d'initialisation du formulário:", err.message);
-        toast.error("Erro ao iniciar formulário.");
+        toast.error('Erro ao iniciar formulário.');
         navigate('/evaluations');
       } finally {
         setLoading(false);
@@ -578,13 +579,13 @@ export const EvaluationFormPage: React.FC = () => {
     }
     
     if (!selectedCriterion || !selectedCriterion.id) {
-        toast.error('Selecione um critère válido.');
+        toast.error('Selecione un critère valide.');
         return false;
     }
 
     const hasCorrectCriterionId = evaluations.every(evalItem => evalItem.criterion_id === selectedCriterion.id);
     if (!hasCorrectCriterionId) {
-        toast.error('O ID do critério não corresponde para todas as avaliações. Por favor, selecione o critério novamente.');
+        toast.error('O ID do critère não corresponde para todas as avaliações. Por favor, selecione o critère novamente.');
         return false;
     }
 
@@ -643,19 +644,34 @@ export const EvaluationFormPage: React.FC = () => {
 
           // MODIFICATION CLÉ ICI : Inclure 'id' UNIQUEMENT si evaluation.id existe déjà.
           // Sinon, l'ID sera généré par la base de données (DEFAULT gen_random_uuid()).
-          if (evaluation.id) {
+          if (evaluation.id) { 
             baseEvaluation.id = evaluation.id;
           }
 
           return baseEvaluation;
         });
 
-      // supabase.upsert() gérera l'insertion (si id est absent) ou la mise à jour (si id est présent)
-      const { error } = await supabase
-        .from('evaluations')
-        .upsert(evaluationsToSave); 
+      // Séparez les insertions des mises à jour
+      const toUpdate = evaluationsToSave.filter(evaluation => 'id' in evaluation);
+      const toInsert = evaluationsToSave.filter(evaluation => !('id' in evaluation));
 
-      if (error) throw error;
+      // Effectuez les mises à jour
+      if (toUpdate.length > 0) {
+        const { error: updateError } = await supabase
+          .from('evaluations')
+          .upsert(toUpdate, { 
+              onConflict: 'student_id, criterion_id, class_id, date, evaluation_title_id' // Utilisez onConflict pour les mises à jour
+          }); 
+        if (updateError) throw updateError;
+      }
+
+      // Effectuez les insertions
+      if (toInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('evaluations')
+          .insert(toInsert); // Utilisez insert pour les nouveaux enregistrements (l'ID sera généré)
+        if (insertError) throw insertError;
+      }
 
       toast.success(isEditing ? 'Avaliações atualizadas com sucesso' : 'Avaliações criadas com sucesso');
       navigate('/evaluations');
@@ -816,7 +832,7 @@ export const EvaluationFormPage: React.FC = () => {
               </select>
               {selectedEvaluationTitleId && availableCriteria.length < criteria.length && (
                 <p className="text-xs text-blue-600 mt-1">
-                  ℹ️ Critérios filtrados baseados no título selecionado
+                  ℹ️ Critères filtrés baseados no título selecionado
                 </p>
               )}
             </div>
@@ -851,7 +867,7 @@ export const EvaluationFormPage: React.FC = () => {
                 required
                 disabled={isEditing && evaluations.length > 0} 
               >
-                <option value="">Selecione um critère</option>
+                <option value="">Selecione un critère</option>
                 {availableCriteria.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.min_value} - {c.max_value})
@@ -860,7 +876,7 @@ export const EvaluationFormPage: React.FC = () => {
               </select>
               {availableCriteria.length === 0 && (
                 <p className="text-sm text-error-600">
-                  Nenhum critério encontrado.{' '}
+                  Nenhum critère encontrado.{' '}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -955,96 +971,3 @@ export const EvaluationFormPage: React.FC = () => {
                     <thead className="bg-gray-50">
                       <tr>
                         <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Aluno
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Valor
-                        </th>
-                        {/* NEW: Comments Header */}
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Comentários
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {sortedEvaluations.map((evaluation) => {
-                        const hasValue = evaluation.value && evaluation.value.trim() !== '';
-                        return (
-                          <tr key={evaluation.student_id}>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${hasValue ? 'font-bold' : ''} text-gray-900`}>
-                              {evaluation.student_name}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-40">
-                              <input
-                                type="number"
-                                step="0.1"
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50"
-                                value={evaluation.value}
-                                onChange={(e) => handleValueChange(evaluation.student_id, e.target.value)}
-                                min={selectedCriterion?.min_value}
-                                max={selectedCriterion?.max_value}
-                                placeholder={selectedCriterion ? `${selectedCriterion.min_value}-${selectedCriterion.max_value}` : ''}
-                                disabled={false} 
-                              />
-                            </td>
-                            {/* NEW: Comments Input for each student */}
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-full">
-                              <textarea
-                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50"
-                                rows={2}
-                                value={evaluation.comments}
-                                onChange={(e) => handleCommentChange(evaluation.student_id, e.target.value)}
-                                placeholder="Adicionar comentário..."
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-between items-center">
-            {/* Delete button - only show when editing */}
-            {isEditing && (
-              <Button
-                type="button"
-                variant="danger"
-                onClick={handleDeleteClick}
-                isLoading={deleting}
-                leftIcon={<Trash2 className="h-4 w-4" />}
-              >
-                Excluir Avaliação
-              </Button>
-            )}
-
-            <div className={`flex space-x-3 ${!isEditing ? 'ml-auto' : ''}`}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate('/evaluations')}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" isLoading={loading}>
-                {isEditing ? 'Salvar Alterações' : 'Criar Avaliações'}
-              </Button>
-            </div>
-          </div>
-        </form>
-      </Card>
-
-      {/* Confirm Dialog */}
-      <ConfirmDialog
-        isOpen={confirmDialog.isOpen}
-        title={confirmDialog.title}
-        message={confirmDialog.message}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setConfirmDialog({ isOpen: false, title: '', message: '' })}
-      />
-    </div>
-  );
-};
