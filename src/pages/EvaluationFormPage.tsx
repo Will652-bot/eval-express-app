@@ -625,74 +625,79 @@ export const EvaluationFormPage: React.FC = () => {
 
     return true;
   };
-
+// A PARTIR DE ICI -----------------------------
   // Handles form submission (create or update evaluations)
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!validateForm()) return;
+  if (!validateForm()) return;
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const evaluationsToSave = evaluations
-        .filter(evaluation => evaluation.value && evaluation.value.trim() !== '')
-        .map(evaluation => {
-          const baseEvaluation = {
-            date,
-            comments: evaluation.comments || null,
-            class_id: selectedClass,
-            teacher_id: user?.id,
-            student_id: evaluation.student_id,
-            criterion_id: evaluation.criterion_id,
-            value: parseFloat(evaluation.value),
-            evaluation_title_id: selectedEvaluationTitleId
-          };
+  try {
+    const evaluationsToSave = evaluations
+      .filter(evaluation => evaluation.value && evaluation.value.trim() !== '')
+      .map(evaluation => {
+        const baseEvaluation = {
+          date,
+          comments: evaluation.comments || null,
+          class_id: selectedClass,
+          teacher_id: user?.id,
+          student_id: evaluation.student_id,
+          criterion_id: evaluation.criterion_id,
+          value: parseFloat(evaluation.value),
+          evaluation_title_id: selectedEvaluationTitleId
+        };
 
-          if (evaluation.id) {
-            return { ...baseEvaluation, id: evaluation.id };
-          }
-          return baseEvaluation;
-        });
-
-      if (isEditing) {
-        const toUpdate = evaluationsToSave.filter(evaluation => 'id' in evaluation);
-        if (toUpdate.length > 0) {
-          const { error: updateError } = await supabase
-            .from('evaluations')
-            .upsert(toUpdate);
-
-          if (updateError) throw updateError;
+        if (evaluation.id) {
+          return { ...baseEvaluation, id: evaluation.id };
         }
+        return baseEvaluation;
+      });
 
-        const toInsert = evaluationsToSave.filter(evaluation => !('id' in evaluation));
-        if (toInsert.length > 0) {
-          const { error: insertError } = await supabase
-            .from('evaluations')
-            .insert(toInsert);
-
-          if (insertError) throw insertError;
-        }
-
-        toast.success('Avaliações atualizadas com sucesso');
-      } else {
-        const { error } = await supabase
+    if (isEditing) {
+      // Logic for editing existing evaluations (already uses upsert for updates)
+      const toUpdate = evaluationsToSave.filter(evaluation => 'id' in evaluation);
+      if (toUpdate.length > 0) {
+        const { error: updateError } = await supabase
           .from('evaluations')
-          .insert(evaluationsToSave);
+          .upsert(toUpdate); // Correctly updates existing records
 
-        if (error) throw error;
-        toast.success('Avaliações criadas com sucesso');
+        if (updateError) throw updateError;
       }
 
-      navigate('/evaluations');
-    } catch (error: any) {
-      console.error('Error saving evaluations:', error.message);
-      toast.error('Erro ao salvar avaliações');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const toInsert = evaluationsToSave.filter(evaluation => !('id' in evaluation));
+      if (toInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('evaluations')
+          .insert(toInsert);
 
+        if (insertError) throw insertError;
+      }
+
+      toast.success('Avaliações atualizadas com sucesso');
+    } else {
+      // Pour les nouvelles évaluations, utiliser upsert au lieu de insert
+      // Cela permet de mettre à jour si l'évaluation existe déjà (via le pré-remplissage)
+      // ou d'insérer si elle est vraiment nouvelle.
+      const { error } = await supabase
+        .from('evaluations')
+        .upsert(evaluationsToSave); // <-- MODIFICATION ICI
+
+      if (error) throw error;
+      toast.success('Avaliações criadas com sucesso');
+    }
+
+    navigate('/evaluations');
+  } catch (error: any) {
+    console.error('Error saving evaluations:', error.message);
+    toast.error('Erro ao salvar avaliações');
+  } finally {
+    setLoading(false);
+  }
+};
+
+//JUSQUE ICI 
   // Handles deletion confirmation dialog
   const handleDeleteClick = () => {
     setConfirmDialog({
