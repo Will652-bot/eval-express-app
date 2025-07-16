@@ -11,10 +11,14 @@ interface TeacherType {
   teachertype: string;
 }
 
-export const TeacherTypeSelector: React.FC = () => {
+interface TeacherTypeSelectorProps {
+  selectedTypes: string[];
+  setSelectedTypes: (types: string[]) => void;
+}
+
+export const TeacherTypeSelector: React.FC<TeacherTypeSelectorProps> = ({ selectedTypes, setSelectedTypes }) => {
   const { user } = useAuth();
   const [teacherTypes, setTeacherTypes] = useState<TeacherType[]>([]);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Charger tous les types disponibles
@@ -30,24 +34,6 @@ export const TeacherTypeSelector: React.FC = () => {
 
     fetchTeacherTypes();
   }, []);
-
-  // Charger les types déjà sélectionnés par l'utilisateur
-  useEffect(() => {
-    const fetchSelectedTypes = async () => {
-      if (!user?.id) return;
-      const { data, error } = await supabase
-        .from('users_teachertypes')
-        .select('teachertype_id')
-        .eq('user_id', user.id);
-
-      if (!error && data) {
-        const selected = data.map((row) => row.teachertype_id);
-        setSelectedTypes(selected);
-      }
-    };
-
-    fetchSelectedTypes();
-  }, [user?.id]);
 
   // Activer ou désactiver un type
   const toggleType = (id: string) => {
@@ -67,7 +53,10 @@ export const TeacherTypeSelector: React.FC = () => {
     });
   };
 
-  // Sauvegarder la sélection dans la table user_teachertypes
+  // Bouton désactivé si aucune sélection valide
+  const isSaveDisabled = selectedTypes.length === 0 || loading;
+
+  // Si jamais cette sauvegarde est utilisée ailleurs
   const handleSaveTypes = async () => {
     if (!user?.id || selectedTypes.length === 0) {
       toast.error('Selecione ao menos um tipo de professor');
@@ -110,12 +99,6 @@ export const TeacherTypeSelector: React.FC = () => {
             {type.teachertype}
           </Button>
         ))}
-      </div>
-
-      <div className="pt-2">
-        <Button onClick={handleSaveTypes} disabled={selectedTypes.length === 0 || loading}>
-          {loading ? 'Salvando...' : 'Salvar Tipos de Professor'}
-        </Button>
       </div>
     </div>
   );
