@@ -1,3 +1,4 @@
+// src/pages/SettingsPage.tsx
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -97,12 +98,14 @@ export default function SettingsPage() {
 
   const createDemoData = async () => {
     for (const id of savedTeacherTypes) {
-      const res = await supabase.rpc('generate_demo_data_by_type', {
-        p_user_id: user.id,
-        p_user_email: user.email,
-        p_teachertype_ids: [id],
-      });
-      if (res.error) toast.error('Erro ao gerar dados');
+      if (!demoDataStatus[id]) {
+        const res = await supabase.rpc('generate_demo_data_by_type', {
+          p_user_id: user.id,
+          p_user_email: user.email,
+          p_teachertype_ids: [id],
+        });
+        if (res.error) toast.error('Erro ao gerar dados');
+      }
     }
     toast.success('Dados de demonstração criados');
     checkExistingDemoData();
@@ -110,11 +113,13 @@ export default function SettingsPage() {
 
   const deleteDemoData = async () => {
     for (const id of savedTeacherTypes) {
-      const res = await supabase.rpc('delete_demo_data_by_type', {
-        p_user_id: user.id,
-        p_teachertype_ids: [id],
-      });
-      if (res.error) toast.error('Erro ao excluir dados');
+      if (demoDataStatus[id]) {
+        const res = await supabase.rpc('delete_demo_data_by_type', {
+          p_user_id: user.id,
+          p_teachertype_ids: [id],
+        });
+        if (res.error) toast.error('Erro ao excluir dados');
+      }
     }
     toast.success('Dados de demonstração excluídos');
     checkExistingDemoData();
@@ -144,17 +149,18 @@ export default function SettingsPage() {
             if (types.length <= 2) setSelectedTeacherTypes(types);
           }}
         />
-        <Button
-          onClick={handleSaveTeacherTypes}
-          className="mt-4"
-        >
-          Salvar tipos selecionados
-        </Button>
       </div>
 
       <div>
         <h2 className="text-xl font-bold mt-6">Dados de demonstração</h2>
         <div className="flex gap-4 mt-2">
+          <Button
+            onClick={handleSaveTeacherTypes}
+            disabled={selectedTeacherTypes.length === 0}
+            className="bg-blue-600 text-white"
+          >
+            Tipos selecionados
+          </Button>
           <Button
             onClick={createDemoData}
             disabled={!canCreateAnyDemo}
