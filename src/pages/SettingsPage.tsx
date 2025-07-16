@@ -96,15 +96,47 @@ export default function SettingsPage() {
     setDemoDataStatus(status);
   };
 
+  const generateDemoFunctionByType = (typeId: string) => {
+    const mapping: { [key: string]: string } = {
+      'faculdade': 'generate_demo_data_faculdade',
+      'concurso': 'generate_demo_data_concurso',
+      'criancas': 'generate_demo_data_criancas',
+      'fundamental': 'generate_demo_data_fundamental',
+      'medio': 'generate_demo_data_medio',
+    };
+    return mapping[typeId] || null;
+  };
+
+  const getTeachertypeKey = async (id: string): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from('teachertypes')
+      .select('teachertype')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) return null;
+    const label = data.teachertype.toLowerCase();
+    if (label.includes('faculdade')) return 'faculdade';
+    if (label.includes('concurso')) return 'concurso';
+    if (label.includes('infantil') || label.includes('criança')) return 'criancas';
+    if (label.includes('fundamental')) return 'fundamental';
+    if (label.includes('médio') || label.includes('medio')) return 'medio';
+    return null;
+  };
+
   const createDemoData = async () => {
     for (const id of savedTeacherTypes) {
       if (!demoDataStatus[id]) {
-        const res = await supabase.rpc('generate_demo_data_by_type', {
-          p_user_id: user.id,
-          p_user_email: user.email,
-          p_teachertype_ids: [id],
-        });
-        if (res.error) toast.error('Erro ao gerar dados');
+        const key = await getTeachertypeKey(id);
+        const fn = key && generateDemoFunctionByType(key);
+        if (fn) {
+          const res = await supabase.rpc(fn, {
+            p_user_id: user.id,
+            p_user_email: user.email,
+            p_teachertype_id: id,
+          });
+          if (res.error) toast.error(`Erro ao gerar dados: ${key}`);
+        }
       }
     }
     toast.success('Dados de demonstração criados');
@@ -116,7 +148,7 @@ export default function SettingsPage() {
       if (demoDataStatus[id]) {
         const res = await supabase.rpc('delete_demo_data_by_type', {
           p_user_id: user.id,
-          p_teachertype_ids: [id],
+          p_teachertype_id: id,
         });
         if (res.error) toast.error('Erro ao excluir dados');
       }
