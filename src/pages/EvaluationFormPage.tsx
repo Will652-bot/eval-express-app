@@ -43,10 +43,6 @@ export const EvaluationFormPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams(); // 'id' is the ID of a single evaluation record for editing
 
-  // AJOUT TEMPORAIRE POUR DÉBOGAGE : Ligne à ajouter pour capturer l'ID dès sa lecture
-  // console.log('ID reçu de useParams dans EvaluationFormPage:', id); 
-  // FIN AJOUT TEMPORAIRE
-
   const { user } = useAuth();
 
   // Loading states
@@ -68,7 +64,6 @@ export const EvaluationFormPage: React.FC = () => {
   const [selectedCriterion, setSelectedCriterion] = useState<any>(null);
   const [selectedEvaluationTitleId, setSelectedEvaluationTitleId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  // const [comments, setComments] = useState(''); // REMOVED: General comments state
 
   // Multiple evaluations state - now includes 'comments' for each student
   const [evaluations, setEvaluations] = useState<StudentEvaluationData[]>([]);
@@ -92,7 +87,6 @@ export const EvaluationFormPage: React.FC = () => {
     const initialize = async () => {
       setLoading(true); // Commencer le chargement global du formulaire
       try {
-        // Fetch basic data needed for both new and edit forms
         await Promise.all([
           fetchClasses(),
           fetchCriteria(),
@@ -101,26 +95,24 @@ export const EvaluationFormPage: React.FC = () => {
 
         if (isEditing) {
           if (id) {
-            await fetchEvaluation(id); // Passer l'ID comme argument
+            await fetchEvaluation(id);
           } else {
             console.error("Erreur: isEditing est vrai mais l'ID de l'évaluation est manquant dans les paramètres de l'URL.");
             toast.error("Erro ao carregar avaliação: ID ausente.");
             navigate('/evaluations'); 
           }
         } 
-        // Note: For !isEditing, `fetchStudents` (triggered by `selectedClass` change)
-        // will handle the initialization of the `evaluations` array.
       } catch (err: any) {
         console.error("Erreur d'initialisation du formulaire:", err.message);
         toast.error("Erro ao iniciar formulário.");
-        navigate('/evaluations'); // Rediriger en cas d'erreur critique d'initialisation
+        navigate('/evaluations');
       } finally {
         setLoading(false); // Fin du chargement global du formulaire
       }
     };
 
     initialize();
-  }, [id, user?.id, isEditing]); // Added user?.id and isEditing to dependencies for re-fetch on auth change
+  }, [id, user?.id, isEditing]);
 
   // Fetch students when selectedClass changes
   useEffect(() => {
@@ -133,11 +125,7 @@ export const EvaluationFormPage: React.FC = () => {
         setEvaluations([]); 
       }
     }
-  }, [selectedClass, isEditing]); // isEditing added to dependency to handle initial fetchStudents properly
-
-  // DELETED: Removed the problematic useEffect that was trying to fetch student evaluations
-  // and using undefined variables (selectedTitleId, selectedCriterioId, selectedClassId).
-  // The logic for fetching existing evaluations is now fully within fetchEvaluation.
+  }, [selectedClass, isEditing]);
 
   // Set selected criterion based on the first evaluation's criterion_id (for editing)
   useEffect(() => {
@@ -200,6 +188,81 @@ export const EvaluationFormPage: React.FC = () => {
     }
   }, [isEditing, selectedEvaluationTitleId, evaluationTitles]);
 
+  // NEW useEffect: Fetch and pre-fill existing student evaluations for "new evaluation" mode
+  useEffect(() => {
+    const fetchAndPreFillEvaluations = async () => {
+      if (!user || isEditing || !selectedClass || !selectedCriterion || !selectedEvaluationTitleId) {
+        // If not in new mode, or essential data is missing, do nothing.
+        // Also, if students are not yet loaded, we can't pre-fill.
+        if (!isEditing && selectedClass && students.length > 0) {
+            // Re-initialize evaluations with empty values if criteria/title change
+            // and no existing data is found yet.
+            const initialEvaluations: StudentEvaluationData[] = students.map(student => ({
+                student_id: student.id,
+                student_name: `${student.first_name} ${student.last_name}`,
+                criterion_id: selectedCriterion?.id || '',
+                value: '',
+                comments: ''
+            }));
+            setEvaluations(initialEvaluations);
+        }
+        return;
+      }
+
+      setLoadingStudents(true); // Indicate loading for student evaluations
+      try {
+        // Fetch existing evaluations for the selected class, criterion, and evaluation title
+        const { data: existingEvals, error } = await supabase
+          .from('evaluations')
+          .select(`id, student_id, value, comments`)
+          .eq('class_id', selectedClass)
+          .eq('criterion_id', selectedCriterion.id)
+          .eq('evaluation_title_id', selectedEvaluationTitleId)
+          .eq('teacher_id', user.id)
+          .order('created_at', { ascending: false }); // Get most recent if multiple exist
+
+        if (error) throw error;
+
+        const existingEvalsMap = new Map<string, Pick<StudentEvaluationData, 'id' | 'value' | 'comments'>>();
+        // Populate map, ensuring we only take the most recent for each student if duplicates exist
+        existingEvals?.forEach(evalItem => {
+            if (!existingEvalsMap.has(evalItem.student_id)) { // Only add if not already added (i.e., take the first/most recent)
+                existingEvalsMap.set(evalItem.student_id, {
+                    id: evalItem.id,
+                    value: evalItem.value?.toString() || '',
+                    comments: evalItem.comments || ''
+                });
+            }
+        });
+
+        // Create the evaluations array, pre-filling with existing data
+        const updatedEvaluations: StudentEvaluationData[] = students.map(student => {
+          const existing = existingEvalsMap.get(student.id);
+          return {
+            student_id: student.id,
+            student_name: `${student.first_name} ${student.last_name}`,
+            criterion_id: selectedCriterion.id,
+            value: existing?.value || '', // Pre-fill value
+            comments: existing?.comments || '', // Pre-fill comments
+            id: existing?.id // Keep ID if it's an existing record (though for 'new', we'll insert new ones)
+          };
+        });
+        setEvaluations(updatedEvaluations);
+
+      } catch (error: any) {
+        console.error('Error fetching existing evaluations for pre-fill:', error.message);
+        toast.error('Erro ao pré-carregar avaliações existentes.');
+      } finally {
+        setLoadingStudents(false);
+      }
+    };
+
+    // Only run this effect if students are already loaded
+    if (students.length > 0) {
+        fetchAndPreFillEvaluations();
+    }
+  }, [user, isEditing, selectedClass, selectedCriterion, selectedEvaluationTitleId, students]); // Add students to dependencies
+
   // Fetches all classes for the current teacher
   const fetchClasses = async () => {
     try {
@@ -231,7 +294,7 @@ export const EvaluationFormPage: React.FC = () => {
       setStudents(data || []);
 
       // Initialize evaluations for all students if NOT IN EDITING MODE
-      // AND if students data is available.
+      // This will be overridden by the new useEffect if existing evaluations are found.
       if (!isEditing && data && data.length > 0) {
         const initialEvaluations: StudentEvaluationData[] = data.map(student => ({
           student_id: student.id,
@@ -242,10 +305,8 @@ export const EvaluationFormPage: React.FC = () => {
         }));
         setEvaluations(initialEvaluations);
       } else if (!isEditing && (!data || data.length === 0)) {
-          // If no students and not editing, ensure evaluations array is empty
           setEvaluations([]);
       }
-      // If in editing mode, evaluations will be populated by fetchEvaluation
     } catch (error: any) {
       console.error('Error fetching students:', error.message);
       toast.error('Erro ao carregar alunos');
@@ -408,7 +469,6 @@ export const EvaluationFormPage: React.FC = () => {
 
       if (singleFetchError) {
           console.error('Error fetching single evaluation record to identify group:', singleFetchError.message);
-          // If evaluation not found or not owned by user, redirect.
           toast.error('Avaliação não encontrada ou sem permissão.');
           navigate('/evaluations');
           return;
@@ -421,19 +481,6 @@ export const EvaluationFormPage: React.FC = () => {
       setDate(new Date(groupDate).toISOString().split('T')[0]);
       setSelectedClass(groupClassId);
       setSelectedEvaluationTitleId(groupEvaluationTitleId || '');
-
-      // Ensure criteria and classes are loaded before trying to find them
-      // These should already be loaded by the initial useEffect, but a quick check won't hurt
-      // or ensure fetchClasses/fetchCriteria are part of the initial `Promise.all` in `initialize`
-      // which they are.
-
-      // Set selected criterion based on the group's criterion_id after availableCriteria is loaded
-      // This will be handled by the useEffect watching `evaluations` and `availableCriteria`
-      // or we can explicitly set it here if `availableCriteria` is guaranteed to be fully loaded.
-      // For now, relying on the separate useEffect is fine, but it might introduce a slight delay
-      // in the dropdown showing the correct selected criterion.
-      // const criterion = availableCriteria.find(c => c.id === groupCriterionId);
-      // setSelectedCriterion(criterion);
 
       // Fetch students for the identified class
       const { data: classStudents, error: studentsError } = await supabase
@@ -536,14 +583,12 @@ export const EvaluationFormPage: React.FC = () => {
       return false;
     }
 
-    // Check if evaluations array is not empty and has a criterion_id set
-    // This handles cases where no students are loaded yet, or criterion is not picked for new eval.
     if (evaluations.length === 0 || !evaluations[0]?.criterion_id) {
         toast.error('Selecione um critério e assurez-vous que les élèves sont chargés.');
         return false;
     }
-    const criterionId = evaluations[0]?.criterion_id; // Still good to have for consistency
-    if (!criterionId) { // Redundant but harmless check after the above condition
+    const criterionId = evaluations[0]?.criterion_id;
+    if (!criterionId) {
       toast.error('Selecione um critério');
       return false;
     }
@@ -916,21 +961,6 @@ export const EvaluationFormPage: React.FC = () => {
             </div>
           ) : null}
 
-          {/* REMOVED: General Comments Section */}
-          {/*
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Comentários
-            </label>
-            <textarea
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-              rows={3}
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-            />
-          </div>
-          */}
-
           {/* Student Evaluations Table - Now includes comments column */}
           {selectedClass && (
             <div className="mt-6">
@@ -942,7 +972,6 @@ export const EvaluationFormPage: React.FC = () => {
                   <p className="mt-2 text-gray-500">Carregando alunos...</p>
                 </div>
               ) : students.length === 0 ? (
-                // CORRECTION ICI: Suppression de la balise </p> en trop (déjà corrigée dans votre code original)
                 <div className="text-center py-6 bg-gray-50 rounded-lg">
                   <p className="text-gray-500">Nenhum aluno encontrado nesta turma.</p>
                   <Button
