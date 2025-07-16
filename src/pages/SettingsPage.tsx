@@ -5,7 +5,7 @@ import { Input } from '../components/ui/Input';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, XCircle, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm';
 import { TeacherTypeSelector } from '../features/teacherTypeSelector/TeacherTypeSelector';
@@ -75,6 +75,37 @@ export const SettingsPage: React.FC = () => {
       toast.error(error.message || 'Erro ao atualizar email', { id: 'email-error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveTeacherTypes = async () => {
+    if (!user?.id) return;
+
+    if (selectedTeacherTypesLocal.length === 0) {
+      toast.error('Selecione ao menos um tipo de professor antes de salvar');
+      return;
+    }
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('user_teachertypes')
+        .delete()
+        .eq('user_id', user.id);
+      if (deleteError) throw deleteError;
+
+      const inserts = selectedTeacherTypesLocal.map((typeId) => ({
+        user_id: user.id,
+        teachertype_id: typeId,
+      }));
+
+      const { error: insertError } = await supabase.from('user_teachertypes').insert(inserts);
+      if (insertError) throw insertError;
+
+      toast.success('Tipos de professor salvos com sucesso!');
+      await refetchSelectedTeacherTypes();
+    } catch (err: any) {
+      console.error('❌ Erro ao salvar tipos:', err);
+      toast.error('Erro ao salvar tipos selecionados');
     }
   };
 
@@ -175,6 +206,11 @@ export const SettingsPage: React.FC = () => {
           onSelectionChange={(types) => setSelectedTeacherTypesLocal(types)}
           onValidationChange={(isValid) => setValidTeacherSelection(isValid)}
         />
+        <div className="mt-3">
+          <Button onClick={handleSaveTeacherTypes} variant="default">
+            <Save className="w-4 h-4 mr-2" /> Salvar tipos selecionados
+          </Button>
+        </div>
       </Card>
 
       <Card>
@@ -214,11 +250,14 @@ export const SettingsPage: React.FC = () => {
             Conjunto de demonstração ativo
           </p>
         )}
-        {hasDemoData === false && (
-          <p className="text-sm text-red-600 flex items-center gap-1 mt-2">
+        {hasDemoData === false && selectedTeacherTypesLocal.length > 0 && (
+          <p className="text-sm text-yellow-600 flex items-center gap-1 mt-2">
             <XCircle className="w-4 h-4" />
-            Nenhum conjunto ativo
+            Nenhum conjunto de demonstração ativo para os tipos selecionados
           </p>
+        )}
+        {hasDemoData === false && selectedTeacherTypesLocal.length === 0 && (
+          <p className="text-sm text-gray-500 mt-2">Nenhum tipo de ensino selecionado</p>
         )}
       </Card>
 
