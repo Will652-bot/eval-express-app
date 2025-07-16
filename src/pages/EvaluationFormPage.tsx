@@ -6,9 +6,9 @@ import { Input } from '../components/ui/Input';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { FileText, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // Gardez votre chemin correct pour AuthContext
 import toast from 'react-hot-toast';
-// import { v4 as uuidv4 } from 'uuid'; // <-- SUPPRIMEZ CETTE IMPORTATION
+import { v4 as uuidv4 } from 'uuid'; // <-- 1. AJOUTEZ CETTE IMPORTATION
 
 // Interface for evaluation titles
 interface EvaluationTitle {
@@ -32,7 +32,7 @@ interface EvaluationAttachment {
 
 // New interface for student evaluation data, including comments
 interface StudentEvaluationData {
-  id?: string; // L'ID est optionnel car il est généré par la DB pour les nouvelles entrées
+  id?: string; 
   student_id: string;
   student_name: string;
   criterion_id: string;
@@ -577,13 +577,11 @@ export const EvaluationFormPage: React.FC = () => {
       return false;
     }
     
-    // Vérifier que selectedCriterion est bien défini et a un ID
     if (!selectedCriterion || !selectedCriterion.id) {
-        toast.error('Selecione um critério válido.');
+        toast.error('Selecione um critère válido.');
         return false;
     }
 
-    // Vérifier que toutes les évaluations ont le critère sélectionné par l'utilisateur
     const hasCorrectCriterionId = evaluations.every(evalItem => evalItem.criterion_id === selectedCriterion.id);
     if (!hasCorrectCriterionId) {
         toast.error('O ID do critério não corresponde para todas as avaliações. Por favor, selecione o critério novamente.');
@@ -627,14 +625,12 @@ export const EvaluationFormPage: React.FC = () => {
       const evaluationsToSave = evaluations
         .filter(evaluation => evaluation.value && evaluation.value.trim() !== '')
         .map(evaluation => {
-          // Utiliser selectedCriterion.id pour assurer la cohérence
           const finalCriterionId = selectedCriterion?.id; 
           if (!finalCriterionId) {
-              // Cette erreur ne devrait pas se produire si la validation est passée.
               throw new Error("Criterion ID is missing during submission. This should be caught by validation.");
           }
 
-          const baseEvaluation: any = { // Utiliser 'any' pour permettre l'ajout conditionnel de 'id'
+          const baseEvaluation: any = { 
             date,
             comments: evaluation.comments || null,
             class_id: selectedClass,
@@ -645,7 +641,8 @@ export const EvaluationFormPage: React.FC = () => {
             evaluation_title_id: selectedEvaluationTitleId
           };
 
-          // AJOUT: Inclure 'id' UNIQUEMENT si l'évaluation a déjà un ID (mode édition)
+          // MODIFICATION CLÉ ICI : Inclure 'id' UNIQUEMENT si evaluation.id existe déjà.
+          // Sinon, l'ID sera généré par la base de données (DEFAULT gen_random_uuid()).
           if (evaluation.id) {
             baseEvaluation.id = evaluation.id;
           }
@@ -854,7 +851,7 @@ export const EvaluationFormPage: React.FC = () => {
                 required
                 disabled={isEditing && evaluations.length > 0} 
               >
-                <option value="">Selecione um critério</option>
+                <option value="">Selecione um critère</option>
                 {availableCriteria.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.min_value} - {c.max_value})
@@ -870,7 +867,7 @@ export const EvaluationFormPage: React.FC = () => {
                     type="button"
                     onClick={() => navigate('/criteria/new')}
                   >
-                    Criar critério
+                    Criar critère
                   </Button>
                 </p>
               )}
