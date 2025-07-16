@@ -1,206 +1,175 @@
-import React, { useState, useEffect } from 'react';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { ConfirmModal } from '../components/ui/ConfirmModal';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-import { Plus, Trash2, CheckCircle, XCircle, Save } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Label } from '@/components/ui/Label';
 import toast from 'react-hot-toast';
-import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm';
-import { TeacherTypeSelector } from '../features/teacherTypeSelector/TeacherTypeSelector';
-import { useSelectedTeacherTypes } from '../features/teacherTypeSelector/hooks/useSelectedTeacherTypes';
+import { TeacherTypeSelector } from '@/features/teacherTypeSelector/TeacherTypeSelector';
 
-export const SettingsPage: React.FC = () => {
+export default function SettingsPage() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [formData, setFormData] = useState({ email: user?.email || '' });
+  const [email, setEmail] = useState(user?.email || '');
+  const [saving, setSaving] = useState(false);
 
-  const { refetchSelectedTeacherTypes } = useSelectedTeacherTypes(user?.id || '');
-  const [selectedTeacherTypesLocal, setSelectedTeacherTypesLocal] = useState<string[]>([]);
-  const [validTeacherSelection, setValidTeacherSelection] = useState<boolean | null>(null);
-  const [existingDemoTeachertypes, setExistingDemoTeachertypes] = useState<string[]>([]);
+  const [selectedTeacherTypes, setSelectedTeacherTypes] = useState<string[]>([]);
+  const [savedTeacherTypes, setSavedTeacherTypes] = useState<string[]>([]);
+  const [demoDataStatus, setDemoDataStatus] = useState<{ [key: string]: boolean }>({});
+
+  const fetchTeacherTypes = async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('users_teachertypes')
+      .select('teachertype_id')
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error(error);
+      toast.error('Erro ao carregar tipos de professor');
+    } else {
+      const ids = data.map((item) => item.teachertype_id);
+      setSelectedTeacherTypes(ids);
+      setSavedTeacherTypes(ids);
+    }
+  };
 
   useEffect(() => {
-    if (user) {
-      setFormData({ email: user.email || '' });
-      fetchExistingDemoData();
-    }
-  }, [user]);
+    fetchTeacherTypes();
+    checkExistingDemoData();
+  }, [user?.id]);
 
-  const fetchExistingDemoData = async () => {
+  const handleSaveEmail = async () => {
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) {
+      toast.error('Erro ao atualizar email');
+    } else {
+      toast.success('Email atualizado com sucesso');
+    }
+    setSaving(false);
+  };
+
+  const handleSaveTeacherTypes = async () => {
+    if (!user?.id) return;
+
+    const deleteRes = await supabase
+      .from('users_teachertypes')
+      .delete()
+      .eq('user_id', user.id);
+
+    if (deleteRes.error) {
+      toast.error('Erro ao limpar tipos antigos');
+      return;
+    }
+
+    const inserts = selectedTeacherTypes.map((id) => ({
+      user_id: user.id,
+      teachertype_id: id,
+    }));
+
+    const insertRes = await supabase.from('users_teachertypes').insert(inserts);
+
+    if (insertRes.error) {
+      toast.error('Erro ao salvar tipos de professor');
+    } else {
+      toast.success('Tipos de professor atualizados');
+      setSavedTeacherTypes([...selectedTeacherTypes]);
+      checkExistingDemoData();
+    }
+  };
+
+  const checkExistingDemoData = async () => {
     if (!user?.id) return;
     const { data, error } = await supabase
       .from('demo_entities')
       .select('teachertype_id')
       .eq('user_id', user.id);
 
-    if (error) {
-      toast.error('Erro ao verificar dados de demonstração');
-      console.error(error);
-      return;
-    }
+    if (error) return;
 
-    const demoTypes = data.map((row: any) => row.teachertype_id);
-    setExistingDemoTeachertypes(demoTypes);
-  };
-
-  const handleEmailUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.email.trim()) {
-      toast.error('O email é obrigatório');
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.updateUser({ email: formData.email });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success('Email atualizado com sucesso!');
-  };
-
-  const handleSaveTeacherTypes = async () => {
-    if (!user?.id) return;
-    if (selectedTeacherTypesLocal.length === 0) {
-      toast.error('Selecione ao menos um tipo');
-      return;
-    }
-
-    await supabase.from('user_teachertypes').delete().eq('user_id', user.id);
-    const inserts = selectedTeacherTypesLocal.map((typeId) => ({
-      user_id: user.id,
-      teachertype_id: typeId,
-    }));
-    const { error } = await supabase.from('user_teachertypes').insert(inserts);
-    if (error) {
-      toast.error('Erro ao salvar');
-      return;
-    }
-    toast.success('Tipos salvos com sucesso');
-    fetchExistingDemoData();
-  };
-
-  const handleCreateDemoData = async () => {
-    if (!user?.id || !user?.email) return;
-    const { error } = await supabase.rpc('generate_demo_data_by_type', {
-      p_user_id: user.id,
-      p_user_email: user.email,
-      p_teachertype_ids: selectedTeacherTypesLocal,
+    const status: { [key: string]: boolean } = {};
+    data.forEach((e) => {
+      status[e.teachertype_id] = true;
     });
-    if (error) {
-      toast.error('Erro ao criar dados');
-      return;
-    }
-    toast.success('Dados criados com sucesso');
-    fetchExistingDemoData();
+
+    setDemoDataStatus(status);
   };
 
-  const handleDeleteDemoData = async () => {
-    if (!user?.id || !user?.email) return;
-    const { error } = await supabase.rpc('delete_demo_data_by_type', {
-      p_user_id: user.id,
-      p_user_email: user.email,
-      p_teachertype_ids: selectedTeacherTypesLocal,
-    });
-    if (error) {
-      toast.error('Erro ao excluir dados');
-      return;
+  const createDemoData = async () => {
+    for (const id of savedTeacherTypes) {
+      const res = await supabase.rpc('generate_demo_data_by_type', {
+        p_user_id: user.id,
+        p_user_email: user.email,
+        p_teachertype_ids: [id],
+      });
+      if (res.error) toast.error('Erro ao gerar dados');
     }
-    toast.success('Dados excluídos com sucesso');
-    fetchExistingDemoData();
+    toast.success('Dados de demonstração criados');
+    checkExistingDemoData();
   };
 
-  const canCreate = selectedTeacherTypesLocal.some(
-    (id) => !existingDemoTeachertypes.includes(id)
-  );
+  const deleteDemoData = async () => {
+    for (const id of savedTeacherTypes) {
+      const res = await supabase.rpc('delete_demo_data_by_type', {
+        p_user_id: user.id,
+        p_teachertype_ids: [id],
+      });
+      if (res.error) toast.error('Erro ao excluir dados');
+    }
+    toast.success('Dados de demonstração excluídos');
+    checkExistingDemoData();
+  };
 
-  const canDelete = selectedTeacherTypesLocal.some(
-    (id) => existingDemoTeachertypes.includes(id)
-  );
+  const hasAnyDemo = savedTeacherTypes.some((id) => demoDataStatus[id]);
+  const canCreateAnyDemo = savedTeacherTypes.some((id) => !demoDataStatus[id]);
 
   return (
-    <div className="p-4 space-y-6">
-      <Card>
-        <h2>Email</h2>
-        <form onSubmit={handleEmailUpdate} className="flex gap-2">
-          <Input
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          />
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Salvando...' : 'Salvar'}
-          </Button>
-        </form>
-      </Card>
-
-      <Card>
-        <h2>Tipo de ensino</h2>
-        <TeacherTypeSelector
-          userId={user?.id || ''}
-          onSelectionChange={(types) => setSelectedTeacherTypesLocal(types)}
-          onValidationChange={(isValid) => setValidTeacherSelection(isValid)}
-        />
-        <div className="mt-2">
-          <Button onClick={handleSaveTeacherTypes}>
-            <Save className="w-4 h-4 mr-2" /> Salvar tipos selecionados
-          </Button>
-        </div>
-      </Card>
-
-      <Card>
-        <h2>Dados de demonstração</h2>
+    <div className="space-y-8">
+      <div>
+        <Label>Email</Label>
         <div className="flex gap-4">
-          <Button
-            onClick={handleCreateDemoData}
-            disabled={!canCreate || demoLoading || selectedTeacherTypesLocal.length === 0}
-          >
-            <Plus className="w-4 h-4 mr-2" /> Criar um conjunto de dados de demonstração
-          </Button>
+          <Input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Button onClick={handleSaveEmail} disabled={saving}>Salvar</Button>
+        </div>
+      </div>
 
+      <div>
+        <h2 className="text-xl font-bold">Tipo de ensino</h2>
+        <TeacherTypeSelector
+          selectedTypes={selectedTeacherTypes}
+          setSelectedTypes={(types) => {
+            if (types.length <= 2) setSelectedTeacherTypes(types);
+          }}
+        />
+        <Button
+          onClick={handleSaveTeacherTypes}
+          className="mt-4"
+        >
+          Salvar tipos selecionados
+        </Button>
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold mt-6">Dados de demonstração</h2>
+        <div className="flex gap-4 mt-2">
           <Button
-            onClick={() => setShowDeleteConfirm(true)}
-            disabled={!canDelete || demoLoading || selectedTeacherTypesLocal.length === 0}
-            variant="destructive"
+            onClick={createDemoData}
+            disabled={!canCreateAnyDemo}
           >
-            <Trash2 className="w-4 h-4 mr-2" /> Excluir o conjunto de dados de demonstração
+            + Criar um conjunto de dados de demonstração
+          </Button>
+          <Button
+            onClick={deleteDemoData}
+            disabled={!hasAnyDemo}
+            variant="ghost"
+          >
+            🗑️ Excluir o conjunto de dados de demonstração
           </Button>
         </div>
-
-        {selectedTeacherTypesLocal.length > 0 && (
-          <div className="mt-2 space-y-1">
-            {selectedTeacherTypesLocal.map((typeId) => (
-              <p key={typeId} className="text-sm">
-                {existingDemoTeachertypes.includes(typeId) ? (
-                  <span className="text-green-600">✅ Conjunto ativo</span>
-                ) : (
-                  <span className="text-yellow-600">⚠️ Nenhum conjunto ativo</span>
-                )}
-              </p>
-            ))}
-          </div>
-        )}
-
-        {selectedTeacherTypesLocal.length === 0 && (
-          <p className="text-sm text-gray-500 mt-2">Nenhum tipo de ensino selecionado</p>
-        )}
-      </Card>
-
-      <Card>
-        <UpdatePasswordForm />
-      </Card>
-
-      <ConfirmModal
-        open={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleDeleteDemoData}
-        title="Excluir dados de demonstração"
-        description="Tem certeza que deseja excluir os dados de demonstração?"
-        confirmText="Sim, excluir"
-      />
+      </div>
     </div>
   );
-};
-
-export default SettingsPage;
+}
