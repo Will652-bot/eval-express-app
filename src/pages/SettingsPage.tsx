@@ -88,7 +88,7 @@ export const SettingsPage: React.FC = () => {
 
     try {
       const { error: deleteError } = await supabase
-        .from('user_teachertypes')
+        .from('users_teachertypes')
         .delete()
         .eq('user_id', user.id);
       if (deleteError) throw deleteError;
@@ -98,7 +98,7 @@ export const SettingsPage: React.FC = () => {
         teachertype_id: typeId,
       }));
 
-      const { error: insertError } = await supabase.from('user_teachertypes').insert(inserts);
+      const { error: insertError } = await supabase.from('users_teachertypes').insert(inserts);
       if (insertError) throw insertError;
 
       toast.success('Tipos de professor salvos com sucesso!');
