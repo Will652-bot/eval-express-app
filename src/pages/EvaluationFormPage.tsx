@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Ajout de useCallback
+import React, { useState, useEffect, useCallback } from 'react'; // Garde useCallback pour les handlers d'input
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -82,6 +82,8 @@ export const EvaluationFormPage: React.FC = () => {
   const isEditing = !!id;
 
   // --- Fonctions de gestion des changements de valeur et de commentaire (utilisent useCallback) ---
+  // Ces fonctions sont enveloppées dans useCallback car elles sont passées aux inputs et
+  // n'ont pas de dépendances qui changent entre les rendus (setEvaluations est stable).
   const handleValueChange = useCallback((studentId: string, value: string) => {
     setEvaluations(prev =>
       prev.map(evaluation =>
@@ -90,7 +92,7 @@ export const EvaluationFormPage: React.FC = () => {
           : evaluation
       )
     );
-  }, []); // Pas de dépendances car setEvaluations est stable
+  }, []); 
 
   const handleCommentChange = useCallback((studentId: string, comment: string) => {
     setEvaluations(prev =>
@@ -100,8 +102,109 @@ export const EvaluationFormPage: React.FC = () => {
           : evaluation
       )
     );
-  }, []); // Pas de dépendances car setEvaluations est stable
+  }, []); 
   // --- FIN Fonctions de gestion ---
+
+
+  // --- Fonctions de récupération de données (SANS useCallback, pour la stabilité) ---
+  // Ces fonctions seront recréées à chaque rendu, mais c'est moins risqué que les problèmes de dépendances de useCallback.
+  // Les useEffects qui les appellent devront les inclure dans leurs tableaux de dépendances.
+
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('teacher_id', user?.id)
+        .order('name');
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error: any) {
+      console.error('Error fetching classes:', error.message);
+      toast.error('Erro ao carregar turmas');
+    }
+  };
+
+  const fetchCriteria = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('criteria')
+        .select('*')
+        .eq('teacher_id', user?.id)
+        .order('name');
+      if (error) throw error;
+      setCriteria(data || []);
+      setAvailableCriteria(data || []);
+    } catch (error: any) {
+      console.error('Error fetching criteria:', error.message);
+      toast.error('Erro ao carregar critérios');
+    }
+  };
+
+  const fetchEvaluationTitles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('evaluation_titles')
+        .select('*')
+        .eq('teacher_id', user?.id)
+        .order('title');
+      if (error) throw error;
+      setEvaluationTitles(data || []);
+    } catch (error: any) {
+      console.error('Error fetching evaluation titles:', error.message);
+      toast.error('Erro ao carregar títulos de avaliação');
+    }
+  };
+
+  const fetchCriteriaForTitle = async (titleId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('evaluation_title_criteria')
+        .select(`
+          criterion_id,
+          criteria:criteria(*)
+        `)
+        .eq('evaluation_title_id', titleId)
+        .eq('teacher_id', user?.id);
+
+      if (error) throw error;
+
+      const titleCriteria = data?.map(item => item.criteria).filter(Boolean) || [];
+
+      if (titleCriteria.length > 0) {
+        setAvailableCriteria(titleCriteria);
+      } else {
+        setAvailableCriteria(criteria);
+      }
+    } catch (error: any) {
+      console.error('Error fetching criteria for title:', error.message);
+      setAvailableCriteria(criteria);
+    }
+  };
+
+  const checkForAttachedPDF = async () => {
+    try {
+      setLoadingPDF(true);
+      const { data, error } = await supabase
+        .from('evaluation_attachments')
+        .select('*, class:classes(name)')
+        .eq('evaluation_title_id', selectedEvaluationTitleId)
+        .eq('class_id', selectedClass)
+        .eq('teacher_id', user?.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      setAttachedPDF(data);
+    } catch (error: any) {
+      console.error('Error checking for attached PDF:', error.message);
+      toast.error('Erro ao verificar anexos');
+    } finally {
+      setLoadingPDF(false);
+    }
+  };
+
+  // --- FIN Fonctions de récupération de données ---
 
 
   // Initial data fetching on component mount or ID change
@@ -109,6 +212,8 @@ export const EvaluationFormPage: React.FC = () => {
     const initialize = async () => {
       setLoading(true);
       try {
+        // Ces fonctions sont définies dans le scope du composant, elles n'ont pas besoin d'être
+        // passées dans les deps si elles ne sont pas enveloppées par useCallback.
         await Promise.all([
           fetchClasses(),
           fetchCriteria(),
@@ -134,114 +239,114 @@ export const EvaluationFormPage: React.FC = () => {
     };
 
     initialize();
-  }, [id, user?.id, isEditing, navigate]); // Ajout de navigate dans les dépendances
+    // Les fonctions fetch... ne sont pas des deps ici si elles ne sont pas useCallback-ifiées.
+    // user?.id et isEditing sont les deps principales.
+  }, [id, user?.id, isEditing, navigate]); 
 
 
   // Fetch students when selectedClass changes
+  // Cette fonction est responsable d'initialiser le tableau 'evaluations' avec tous les étudiants
+  // de la classe sélectionnée, avec des valeurs vides par défaut pour le mode 'Nouvelle Évaluation'.
+  // Le pré-remplissage des valeurs existantes sera géré par un autre useEffect.
+  const fetchStudents = async (classId: string) => { // SANS useCallback ici
+    setLoadingStudents(true);
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, first_name, last_name')
+        .eq('class_id', classId)
+        .order('first_name');
+
+      if (error) throw error;
+      setStudents(data || []);
+
+      // Toujours initialiser les évaluations avec des valeurs vides pour tous les étudiants,
+      // surtout en mode !isEditing. Le pré-remplissage se fera ensuite.
+      if (data) {
+        const initialEvaluations: StudentEvaluationData[] = data.map(student => ({
+          student_id: student.id,
+          student_name: `${student.first_name} ${student.last_name}`,
+          criterion_id: selectedCriterion?.id || '', // Garder le critère si déjà sélectionné
+          value: '',
+          comments: ''
+        }));
+        setEvaluations(initialEvaluations);
+      } else if (!data || data.length === 0) {
+        setEvaluations([]);
+      }
+    } catch (error: any) {
+      console.error('Error fetching students:', error.message);
+      toast.error('Erro ao carregar alunos');
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedClass) {
-      fetchStudents(selectedClass);
+      // fetchStudents n'est pas enveloppé par useCallback, donc il est une dépendance ici.
+      fetchStudents(selectedClass); 
     } else {
       setStudents([]);
       if (!isEditing) { 
         setEvaluations([]); 
       }
     }
-  }, [selectedClass, isEditing, fetchStudents]); // Ajout de fetchStudents (même si useCallback le rendrait stable)
+  }, [selectedClass, isEditing, selectedCriterion?.id, supabase]); // Ajout de selectedCriterion?.id et supabase aux deps.
 
   // Set selected criterion based on the first evaluation's criterion_id (for editing)
   useEffect(() => {
     if (evaluations.length > 0 && evaluations[0]?.criterion_id && availableCriteria.length > 0) {
       const criterion = availableCriteria.find(c => c.id === evaluations[0].criterion_id);
-      setSelectedCriterion(criterion || null); // S'assurer que le critère est trouvé ou null
-    } else if (evaluations.length === 0) { // Clear criterion if no evaluations
+      setSelectedCriterion(criterion || null);
+    } else if (evaluations.length === 0) {
       setSelectedCriterion(null);
     }
   }, [evaluations, availableCriteria]);
 
-  // Filter criteria based on selected evaluation title
   useEffect(() => {
     if (selectedEvaluationTitleId) {
-      fetchCriteriaForTitle(selectedEvaluationTitleId);
+      // fetchCriteriaForTitle n'est pas useCallback-ifié, donc il est une dépendance.
+      fetchCriteriaForTitle(selectedEvaluationTitleId); 
     } else {
       setAvailableCriteria(criteria);
     }
-  }, [selectedEvaluationTitleId, criteria, fetchCriteriaForTitle]); // Ajout de fetchCriteriaForTitle
+  }, [selectedEvaluationTitleId, criteria, fetchCriteriaForTitle]); // Dépendance sur la fonction elle-même
 
-  // Check for attached PDF when evaluation title or class changes
   useEffect(() => {
     if (selectedEvaluationTitleId && selectedClass) {
-      checkForAttachedPDF();
+      // checkForAttachedPDF n'est pas useCallback-ifié, donc il est une dépendance.
+      checkForAttachedPDF(); 
     } else {
       setAttachedPDF(null);
     }
-  }, [selectedEvaluationTitleId, selectedClass, user?.id, checkForAttachedPDF]); // Ajout de checkForAttachedPDF
+  }, [selectedEvaluationTitleId, selectedClass, user?.id, checkForAttachedPDF]); // Dépendance sur la fonction elle-même
 
-  // Auto-fill evaluation title name for display (new evaluation mode)
-  useEffect(() => {
-    if (selectedEvaluationTitleId && !isEditing) {
-      const selectedEvaluationTitle = evaluationTitles.find(
-        evalTitle => evalTitle.id === selectedEvaluationTitleId
-      );
-
-      if (selectedEvaluationTitle) {
-        setEvaluationTitleName(selectedEvaluationTitle.title);
-        setShowTitleField(false);
-      }
-    } else if (!selectedEvaluationTitleId && !isEditing) {
-      setEvaluationTitleName('');
-      setShowTitleField(true);
-    }
-  }, [selectedEvaluationTitleId, evaluationTitles, isEditing]);
-
-  // Control visibility of title field in editing mode
-  useEffect(() => {
-    if (isEditing && selectedEvaluationTitleId) {
-      const selectedEvaluationTitle = evaluationTitles.find(
-        evalTitle => evalTitle.id === selectedEvaluationTitleId
-      );
-
-      if (selectedEvaluationTitle) {
-        setEvaluationTitleName(selectedEvaluationTitle.title);
-        setShowTitleField(false);
-      }
-    } else if (isEditing && !selectedEvaluationTitleId) {
-      setShowTitleField(true);
-    }
-  }, [isEditing, selectedEvaluationTitleId, evaluationTitles]);
 
   // NEW useEffect: Fetch and pre-fill existing student evaluations for "new evaluation" mode
+  // Cette version est plus simple et devrait mieux fonctionner pour le pré-remplissage.
   useEffect(() => {
-    const fetchAndPreFillEvaluations = async () => {
-      // Vérifier toutes les dépendances critiques avant de tenter de chercher des évaluations
-      if (!user || isEditing || !selectedClass || !selectedCriterion?.id || !selectedEvaluationTitleId || students.length === 0) {
-        // Si nous sommes en mode "nouvelle évaluation" et que la classe et les étudiants sont là
-        // mais que le critère ou le titre ne sont pas encore sélectionnés (ou pas d'utilisateur),
-        // on s'assure que l'état des évaluations est vide pour ces étudiants.
-        if (!isEditing && selectedClass && students.length > 0) {
-            const initialEvaluations: StudentEvaluationData[] = students.map(student => ({
-                student_id: student.id,
-                student_name: `${student.first_name} ${student.last_name}`,
-                criterion_id: selectedCriterion?.id || '',
-                value: '',
-                comments: ''
-            }));
-            setEvaluations(initialEvaluations);
-        }
-        return; // Ne pas continuer si les prérequis ne sont pas remplis
-      }
+    // Vérifier toutes les dépendances critiques avant de tenter de chercher des évaluations
+    // L'ordre des vérifications est important.
+    if (!user || isEditing || !selectedClass || !selectedCriterion?.id || !selectedEvaluationTitleId || students.length === 0) {
+        // Si les conditions pour le pré-remplissage ne sont pas remplies, ou en mode édition,
+        // on ne fait rien dans ce useEffect de pré-remplissage.
+        // L'initialisation avec des valeurs vides est déjà gérée par fetchStudents.
+        return; 
+    }
 
-      setLoadingStudents(true);
+    setLoadingStudents(true); // Indiquer chargement (pour le pré-remplissage)
+    const fetchExistingEvalsForPreFill = async () => {
       try {
         const { data: existingEvals, error } = await supabase
           .from('evaluations')
-          .select(`id, student_id, value, comments, date`) // Sélectionner la date pour l'ordre
+          .select(`id, student_id, value, comments, date`) 
           .eq('class_id', selectedClass)
           .eq('criterion_id', selectedCriterion.id)
           .eq('evaluation_title_id', selectedEvaluationTitleId)
           .eq('teacher_id', user.id)
-          .order('date', { ascending: false }) // Ordre par date pour le plus récent
-          .order('created_at', { ascending: false }); // Puis par created_at si date est identique
+          .order('date', { ascending: false }) // Priorité par date
+          .order('created_at', { ascending: false }); // Puis par created_at
 
         if (error) throw error;
 
@@ -256,18 +361,43 @@ export const EvaluationFormPage: React.FC = () => {
             }
         });
 
-        const updatedEvaluations: StudentEvaluationData[] = students.map(student => {
-          const existing = existingEvalsMap.get(student.id);
-          return {
-            student_id: student.id,
-            student_name: `${student.first_name} ${student.last_name}`,
-            criterion_id: selectedCriterion.id,
-            value: existing?.value || '',
-            comments: existing?.comments || '',
-            id: existing?.id
-          };
+        // Mettre à jour les évaluations existantes avec les données pré-remplies
+        setEvaluations(currentEvaluations => {
+            // S'assurer que currentEvaluations n'est pas vide avant de mapper
+            if (!currentEvaluations || currentEvaluations.length === 0) {
+                // Ceci ne devrait pas arriver si fetchStudents a déjà peuplé students et initialEvaluations.
+                // Si ça arrive, on peut fallback sur les étudiants bruts s'ils sont dispo.
+                if (students.length > 0) {
+                    return students.map(student => {
+                        const existing = existingEvalsMap.get(student.id);
+                        return {
+                            student_id: student.id,
+                            student_name: `${student.first_name} ${student.last_name}`,
+                            criterion_id: selectedCriterion.id,
+                            value: existing?.value || '',
+                            comments: existing?.comments || '',
+                            id: existing?.id
+                        };
+                    });
+                }
+                return []; // Aucun étudiant ou évaluation à mapper
+            }
+
+            return currentEvaluations.map(evaluation => {
+                const existing = existingEvalsMap.get(evaluation.student_id);
+                // Si une évaluation existante est trouvée pour cet étudiant, mettre à jour la valeur et les commentaires
+                if (existing) {
+                    return {
+                        ...evaluation,
+                        value: existing.value,
+                        comments: existing.comments,
+                        id: existing.id // Conserver l'ID si c'est une évaluation existante (pour un potentiel upsert)
+                    };
+                }
+                // Sinon, laisser les valeurs vides (initialisées par fetchStudents)
+                return evaluation;
+            });
         });
-        setEvaluations(updatedEvaluations);
 
       } catch (error: any) {
         console.error('Error fetching existing evaluations for pre-fill:', error.message);
@@ -277,141 +407,12 @@ export const EvaluationFormPage: React.FC = () => {
       }
     };
 
-    fetchAndPreFillEvaluations();
-  }, [user, isEditing, selectedClass, selectedCriterion, selectedEvaluationTitleId, students, supabase]);
+    fetchExistingEvalsForPreFill();
+    // Dépendances : tous les états/props dont fetchExistingEvalsForPreFill dépend.
+  }, [user, isEditing, selectedClass, selectedCriterion, selectedEvaluationTitleId, students, supabase, setEvaluations]);
 
-
-  // Fonctions de récupération de données (pas de useCallback car elles utilisent des états du composant,
-  // elles sont donc recréées à chaque rendu, mais c'est acceptable et n'est pas la source de l'erreur `not defined`)
-
-  const fetchClasses = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('teacher_id', user?.id)
-        .order('name');
-
-      if (error) throw error;
-      setClasses(data || []);
-    } catch (error: any) {
-      console.error('Error fetching classes:', error.message);
-      toast.error('Erro ao carregar turmas');
-    }
-  }, [user?.id, supabase]);
-
-  const fetchStudents = useCallback(async (classId: string) => {
-    setLoadingStudents(true);
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, first_name, last_name')
-        .eq('class_id', classId)
-        .order('first_name');
-
-      if (error) throw error;
-      setStudents(data || []);
-
-      if (!isEditing) {
-        const initialEvaluations: StudentEvaluationData[] = data?.map(student => ({
-          student_id: student.id,
-          student_name: `${student.first_name} ${student.last_name}`,
-          criterion_id: selectedCriterion?.id || '',
-          value: '',
-          comments: ''
-        })) || [];
-        setEvaluations(initialEvaluations);
-      }
-    } catch (error: any) {
-      console.error('Error fetching students:', error.message);
-      toast.error('Erro ao carregar alunos');
-    } finally {
-      setLoadingStudents(false);
-    }
-  }, [isEditing, selectedCriterion?.id, supabase]);
-
-  const fetchCriteria = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('criteria')
-        .select('*')
-        .eq('teacher_id', user?.id)
-        .order('name');
-
-      if (error) throw error;
-      setCriteria(data || []);
-      setAvailableCriteria(data || []);
-    } catch (error: any) {
-      console.error('Error fetching criteria:', error.message);
-      toast.error('Erro ao carregar critérios');
-    }
-  }, [user?.id, supabase]);
-
-  const fetchCriteriaForTitle = useCallback(async (titleId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('evaluation_title_criteria')
-        .select(`
-          criterion_id,
-          criteria:criteria(*)
-        `)
-        .eq('evaluation_title_id', titleId)
-        .eq('teacher_id', user?.id);
-
-      if (error) throw error;
-
-      const titleCriteria = data?.map(item => item.criteria).filter(Boolean) || [];
-
-      if (titleCriteria.length > 0) {
-        setAvailableCriteria(titleCriteria);
-      } else {
-        setAvailableCriteria(criteria);
-      }
-    } catch (error: any) {
-      console.error('Error fetching criteria for title:', error.message);
-      setAvailableCriteria(criteria);
-    }
-  }, [user?.id, criteria, supabase]);
-
-  const fetchEvaluationTitles = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('evaluation_titles')
-        .select('*')
-        .eq('teacher_id', user?.id)
-        .order('title');
-
-      if (error) throw error;
-      setEvaluationTitles(data || []);
-    } catch (error: any) {
-      console.error('Error fetching evaluation titles:', error.message);
-      toast.error('Erro ao carregar títulos de avaliação');
-    }
-  }, [user?.id, supabase]);
-
-  const checkForAttachedPDF = useCallback(async () => {
-    try {
-      setLoadingPDF(true);
-      const { data, error } = await supabase
-        .from('evaluation_attachments')
-        .select('*, class:classes(name)')
-        .eq('evaluation_title_id', selectedEvaluationTitleId)
-        .eq('class_id', selectedClass)
-        .eq('teacher_id', user?.id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') throw error;
-
-      setAttachedPDF(data);
-    } catch (error: any) {
-      console.error('Error checking for attached PDF:', error.message);
-      toast.error('Erro ao verificar anexos');
-    } finally {
-      setLoadingPDF(false);
-    }
-  }, [selectedEvaluationTitleId, selectedClass, user?.id, supabase]);
-
-  const fetchEvaluation = useCallback(async (evaluationId: string) => { 
+  // Fetches a single evaluation record by ID and populates the form for editing
+  const fetchEvaluation = async (evaluationId: string) => { // SANS useCallback ici
     setLoading(true);
     try {
       const { data: singleEvaluationRecord, error: singleFetchError } = await supabase
@@ -447,7 +448,7 @@ export const EvaluationFormPage: React.FC = () => {
           .select(`id, student_id, value, comments`)
           .eq('class_id', groupClassId)
           .eq('criterion_id', groupCriterionId)
-          .eq('date', groupDate)
+          .eq('date', groupDate) // Charger les évaluations pour LA DATE spécifiée en mode édition.
           .eq('teacher_id', user?.id);
 
       if (evalError) throw evalError;
@@ -483,7 +484,8 @@ export const EvaluationFormPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, navigate, supabase]);
+  };
+
 
   // Handles change in selected criterion
   const handleCriterionChange = (criterionId: string) => {
@@ -624,7 +626,7 @@ export const EvaluationFormPage: React.FC = () => {
     setConfirmDialog({
       isOpen: true,
       title: 'Excluir Avaliação',
-      message: `Tem certeza que deseja excluir a avaliação "${evaluationTitleName}"? Esta ação não pode ser desfeita e excluirá todas as avaliações associées.`
+      message: `Tem certeza que deseja excluir a avaliação "${evaluationTitleName}"? Esta ação non pode ser desfeita e excluirá todas as avaliações associées.`
     });
   };
 
@@ -801,11 +803,8 @@ export const EvaluationFormPage: React.FC = () => {
                 value={evaluations[0]?.criterion_id || ''}
                 onChange={(e) => handleCriterionChange(e.target.value)}
                 required
-                // MODIFICATION ICI: Garder le sélecteur de critère éditable en mode édition
-                // Si le critère est censé être immuable une fois l'évaluation créée,
-                // il faudrait afficher le nom du critère sans sélecteur en mode édition.
-                // Pour l'instant, on le rend éditable pour débloquer l'input de valeur.
-                disabled={!user || availableCriteria.length === 0} 
+                // Rétablissement de la désactivation du sélecteur de critère en mode édition
+                disabled={isEditing && evaluations.length > 0} 
               >
                 <option value="">Selecione um critério</option>
                 {availableCriteria.map((c) => (
@@ -940,8 +939,8 @@ export const EvaluationFormPage: React.FC = () => {
                                 min={selectedCriterion?.min_value}
                                 max={selectedCriterion?.max_value}
                                 placeholder={selectedCriterion ? `${selectedCriterion.min_value}-${selectedCriterion.max_value}` : ''}
-                                // MODIFICATION ICI: Force l'input de valeur à être éditable
-                                // C'est ici que nous allons vérifier si la désactivation est toujours présente.
+                                // AJOUT/VÉRIFICATION TRÈS IMPORTANT : FORCER disabled={false}
+                                // Ceci est la ligne clé pour le problème de l'input non-éditable.
                                 disabled={false} 
                               />
                             </td>
