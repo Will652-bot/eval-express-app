@@ -121,6 +121,38 @@ export const EvaluationFormPage: React.FC = () => {
     }
   }, [selectedClass, isEditing]);
 
+  useEffect(() => {
+    const fetchStudentEvaluations = async () => {
+      if (!user || !selectedTitleId || !selectedCriterioId || !selectedClassId) return;
+
+      const { data: evaluations, error } = await supabase
+      .from('evaluations')
+      .select('student_id, value, comment')
+      .eq('evaluation_title_id', selectedTitleId)
+      .eq('criterio_id', selectedCriterioId)
+      .eq('class_id', selectedClassId)
+      .eq('teacher_id', user.id);
+
+      if (error) {
+      console.error('Erro ao buscar avaliações existentes:', error);
+      return;
+      }
+
+      const evaluationMap = new Map(
+      evaluations.map((e) => [e.student_id, { value: e.value, comment: e.comment }])
+      );
+      setStudentEvaluations((prev) =>
+      prev.map((s) => ({
+        ...s,
+        value: evaluationMap.get(s.id)?.value ?? '',
+        comment: evaluationMap.get(s.id)?.comment ?? '',
+        }))
+      );
+   };
+
+  fetchStudentEvaluations();
+}, [user, selectedTitleId, selectedCriterioId, selectedClassId]);
+
   // Set selected criterion based on the first evaluation's criterion_id (for editing)
   useEffect(() => {
     if (evaluations.length > 0 && evaluations[0]?.criterion_id) {
