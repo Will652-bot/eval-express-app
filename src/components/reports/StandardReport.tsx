@@ -109,164 +109,90 @@ export const StandardReport: React.FC = () => {
     };
   }, [user?.id]);
 
+  // INERTION POURCENTAGE
   const fetchData = useCallback(async () => {
-    const abortController = new AbortController();
+    setLoading(true);
 
-    try {
-      setLoading(true);
-      
-      let totalsQuery = supabase
-        .from('student_total_with_formatting')
-        .select('*')
-        .eq('teacher_id', user?.id);
+    let totalsQuery = supabase.from('student_total_with_formatting').select('*').eq('teacher_id', user?.id);
+    if (selectedClasses.length > 0) totalsQuery = totalsQuery.in('class_id', selectedClasses);
 
-      if (selectedClasses.length > 0) {
-        totalsQuery = totalsQuery.in('class_id', selectedClasses);
-      }
-      
-      // Filter by evaluation_title using the title names from selected IDs
-      if (selectedTitleIds.length > 0) {
-        const selectedTitleNames = evaluationTitles
-          .filter(title => selectedTitleIds.includes(title.id))
-          .map(title => title.title);
-        
-        if (selectedTitleNames.length > 0) {
-          totalsQuery = totalsQuery.in('evaluation_title', selectedTitleNames);
-        }
-      }
+    let evaluationsQuery = supabase.from('evaluations_with_score').select('*').eq('teacher_id', user?.id);
+    if (selectedClasses.length > 0) evaluationsQuery = evaluationsQuery.in('class_id', selectedClasses);
+    if (selectedCriteria.length > 0) evaluationsQuery = evaluationsQuery.in('criterion_id', selectedCriteria);
+    if (startDate) evaluationsQuery = evaluationsQuery.gte('date', startDate);
+    if (endDate) evaluationsQuery = evaluationsQuery.lte('date', endDate);
+    if (selectedTitleIds.length > 0) evaluationsQuery = evaluationsQuery.in('evaluation_title_id', selectedTitleIds);
 
-      let evaluationsQuery = supabase
-        .from('evaluations')
-        .select(`
-          *,
-          student:students(
-            id,
-            first_name,
-            last_name,
-            class:classes(name)
-          ),
-          criteria:criteria(name, min_value, max_value),
-          evaluation_title:evaluation_titles(title)
-        `)
-        .eq('teacher_id', user?.id);
+    const [studentTotals, evaluations] = await Promise.all([totalsQuery, evaluationsQuery]);
+    if (studentTotals.error) throw studentTotals.error;
+    if (evaluations.error) throw evaluations.error;
 
-      if (selectedClasses.length > 0) {
-        evaluationsQuery = evaluationsQuery.in('class_id', selectedClasses);
-      }
-      if (selectedCriteria.length > 0) {
-        evaluationsQuery = evaluationsQuery.in('criterion_id', selectedCriteria);
-      }
-      if (startDate) {
-        evaluationsQuery = evaluationsQuery.gte('date', startDate);
-      }
-      if (endDate) {
-        evaluationsQuery = evaluationsQuery.lte('date', endDate);
-      }
-      if (selectedTitleIds.length > 0) {
-        evaluationsQuery = evaluationsQuery.in('evaluation_title_id', selectedTitleIds);
-      }
+    const classSummary = new Map();
+    evaluations.data?.forEach(evaluation => {
+      const className = evaluation.class_name || 'Sem Turma';
+      if (!classSummary.has(className)) classSummary.set(className, { sum: 0, count: 0 });
+      const classData = classSummary.get(className);
+      classData.sum += evaluation.percentage;
+      classData.count += 1;
+    });
 
-      const [studentTotals, evaluations] = await Promise.all([
-        totalsQuery,
-        evaluationsQuery
-      ]);
+    const criteriaSummary = new Map();
+    evaluations.data?.forEach(evaluation => {
+      const criteriaName = evaluation.criterion_name || 'Sem Nome';
+      if (!criteriaSummary.has(criteriaName)) criteriaSummary.set(criteriaName, { sum: 0, count: 0 });
+      const criteriaData = criteriaSummary.get(criteriaName);
+      criteriaData.sum += evaluation.percentage;
+      criteriaData.count += 1;
+    });
 
-      if (!abortController.signal.aborted) {
-        if (studentTotals.error) throw studentTotals.error;
-        if (evaluations.error) throw evaluations.error;
+    const lowPerformers = studentTotals.data?.filter(s => s.total < 60).map(s => ({
+      name: `${s.first_name} ${s.last_name}`,
+      class: s.class_name,
+      total: s.total
+    })) || [];
 
-        const classSummary = new Map();
-        studentTotals.data?.forEach(student => {
-          if (!classSummary.has(student.class_name)) {
-            classSummary.set(student.class_name, { sum: 0, count: 0 });
-          }
-          const classData = classSummary.get(student.class_name);
-          classData.sum += student.total;
-          classData.count += 1;
-        });
+    const classLabels = Array.from(classSummary.keys());
+    const classAverages = classLabels.map(c => {
+      const { sum, count } = classSummary.get(c);
+      return count > 0 ? sum / count : 0;
+    });
 
-        const criteriaSummary = new Map();
-        evaluations.data?.forEach(evaluation => {
-          const criteriaName = evaluation.criteria.name;
-          if (!criteriaSummary.has(criteriaName)) {
-            criteriaSummary.set(criteriaName, { sum: 0, count: 0 });
-          }
-          const criteriaData = criteriaSummary.get(criteriaName);
-          criteriaData.sum += evaluation.value;
-          criteriaData.count += 1;
-        });
+    const criteriaLabels = Array.from(criteriaSummary.keys());
+    const criteriaAverages = criteriaLabels.map(c => {
+      const { sum, count } = criteriaSummary.get(c);
+      return count > 0 ? sum / count : 0;
+    });
 
-        const lowPerformers = new Map();
-        studentTotals.data?.forEach(student => {
-          if (student.total < 60) {
-            const studentKey = `${student.first_name} ${student.last_name}`;
-            lowPerformers.set(studentKey, {
-              name: studentKey,
-              class: student.class_name,
-              total: student.total
-            });
-          }
-        });
+    setChartScales({
+      classMax: Math.min(100, Math.ceil(Math.max(...classAverages) * 1.1)),
+      criteriaMax: Math.min(100, Math.ceil(Math.max(...criteriaAverages) * 1.1))
+    });
 
-        const classLabels = Array.from(classSummary.keys());
-        const classAverages = classLabels.map(className => {
-          const { sum, count } = classSummary.get(className);
-          return count > 0 ? sum / count : 0;
-        });
-        const maxClassAverage = Math.max(...classAverages, 0);
+    setPerformanceData({
+      byClass: {
+        labels: classLabels,
+        datasets: [{
+          label: 'Média da Turma (%)',
+          data: classAverages,
+          backgroundColor: 'rgba(59, 130, 246, 0.5)',
+        }],
+      },
+      byCriteria: {
+        labels: criteriaLabels,
+        datasets: [{
+          label: 'Média por Critério (%)',
+          data: criteriaAverages,
+          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+          borderColor: 'rgba(59, 130, 246, 1)',
+        }],
+      },
+      lowPerformance: lowPerformers.slice(0, 5).sort((a, b) => a.total - b.total),
+    });
 
-        const criteriaLabels = Array.from(criteriaSummary.keys());
-        const criteriaAverages = criteriaLabels.map(criteriaName => {
-          const { sum, count } = criteriaSummary.get(criteriaName);
-          return count > 0 ? sum / count : 0;
-        });
-        const maxCriteriaAverage = Math.max(...criteriaAverages, 0);
+    setLoading(false);
+  }, [user?.id, selectedClasses, selectedCriteria, selectedTitleIds, startDate, endDate]);
+// FIN POURCENTAGE
 
-        setChartScales({
-          classMax: Math.ceil(maxClassAverage * 1.2),
-          criteriaMax: Math.ceil(maxCriteriaAverage * 1.2)
-        });
-
-        const lowPerformanceList = Array.from(lowPerformers.values())
-          .sort((a, b) => a.total - b.total)
-          .slice(0, 5);
-
-        setPerformanceData({
-          byClass: {
-            labels: classLabels,
-            datasets: [{
-              label: 'Média da Turma',
-              data: classAverages,
-              backgroundColor: 'rgba(59, 130, 246, 0.5)',
-            }],
-          },
-          byCriteria: {
-            labels: criteriaLabels,
-            datasets: [{
-              label: 'Média por Critério',
-              data: criteriaAverages,
-              backgroundColor: 'rgba(59, 130, 246, 0.2)',
-              borderColor: 'rgba(59, 130, 246, 1)',
-              pointBackgroundColor: 'rgba(59, 130, 246, 1)',
-            }],
-          },
-          lowPerformance: lowPerformanceList,
-        });
-      }
-    } catch (error) {
-      if (!abortController.signal.aborted) {
-        console.error('Error fetching report data:', error);
-      }
-    } finally {
-      if (!abortController.signal.aborted) {
-        setLoading(false);
-      }
-    }
-
-    return () => {
-      abortController.abort();
-    };
-  }, [user?.id, selectedClasses, selectedCriteria, startDate, endDate, selectedTitleIds, evaluationTitles]);
 
   useEffect(() => {
     const cleanup = fetchInitialData();
