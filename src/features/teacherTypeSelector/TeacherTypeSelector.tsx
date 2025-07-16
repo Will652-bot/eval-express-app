@@ -36,7 +36,7 @@ export const TeacherTypeSelector: React.FC = () => {
     const fetchSelectedTypes = async () => {
       if (!user?.id) return;
       const { data, error } = await supabase
-        .from('user_teachertypes')
+        .from('users_teachertypes')
         .select('teachertype_id')
         .eq('user_id', user.id);
 
@@ -77,14 +77,14 @@ export const TeacherTypeSelector: React.FC = () => {
     setLoading(true);
 
     try {
-      await supabase.from('user_teachertypes').delete().eq('user_id', user.id);
+      await supabase.from('users_teachertypes').delete().eq('user_id', user.id);
 
       const inserts = selectedTypes.map((typeId) => ({
         user_id: user.id,
         teachertype_id: typeId,
       }));
 
-      const { error } = await supabase.from('user_teachertypes').insert(inserts);
+      const { error } = await supabase.from('users_teachertypes').insert(inserts);
 
       if (error) throw error;
 
