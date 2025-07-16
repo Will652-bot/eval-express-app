@@ -23,6 +23,7 @@ export const SettingsPage: React.FC = () => {
   const { refetchSelectedTeacherTypes } = useSelectedTeacherTypes(user?.id || '');
   const [selectedTeacherTypesLocal, setSelectedTeacherTypesLocal] = useState<string[]>([]);
   const [validTeacherSelection, setValidTeacherSelection] = useState<boolean | null>(null);
+  const [existingDemoTeachertypes, setExistingDemoTeachertypes] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -35,9 +36,14 @@ export const SettingsPage: React.FC = () => {
     if (!user?.id) return;
     try {
       setCheckingDemoStatus(true);
-      const { data, error } = await supabase.rpc('has_demo_data', { p_user_id: user.id });
+      const { data: demoRows, error } = await supabase
+        .from('demo_entities')
+        .select('teachertype_id')
+        .eq('user_id', user.id);
       if (error) throw error;
-      setHasDemoData(data);
+      const types = (demoRows || []).map((row: any) => row.teachertype_id);
+      setExistingDemoTeachertypes(types);
+      setHasDemoData(types.length > 0);
     } catch (error) {
       console.error('❌ Erro ao verificar status:', error);
       setHasDemoData(false);
@@ -142,6 +148,10 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const enableCreateButton = selectedTeacherTypesLocal.some(
+    (typeId) => !existingDemoTeachertypes.includes(typeId)
+  );
+
   return (
     <div className="p-4 space-y-6">
       <Card>
@@ -172,10 +182,12 @@ export const SettingsPage: React.FC = () => {
         <div className="flex gap-4 items-center">
           <Button
             onClick={handleCreateDemoData}
-            disabled={demoLoading || checkingDemoStatus || validTeacherSelection !== true}
+            disabled={demoLoading || checkingDemoStatus || validTeacherSelection !== true || !enableCreateButton}
             title={
               validTeacherSelection !== true
                 ? 'Seleção inválida: escolha 1 ou 2 tipos válidos'
+                : !enableCreateButton
+                ? 'Todos os conjuntos de demonstração já existem para os tipos selecionados'
                 : undefined
             }
           >
