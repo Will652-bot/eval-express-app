@@ -8,6 +8,7 @@ import { FileText, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+// import { v4 as uuidv4 } from 'uuid'; // <-- SUPPRIMEZ CETTE IMPORTATION
 
 // Interface for evaluation titles
 interface EvaluationTitle {
@@ -31,7 +32,7 @@ interface EvaluationAttachment {
 
 // New interface for student evaluation data, including comments
 interface StudentEvaluationData {
-  id?: string;
+  id?: string; // L'ID est optionnel car il est généré par la DB pour les nouvelles entrées
   student_id: string;
   student_name: string;
   criterion_id: string;
@@ -61,7 +62,7 @@ export const EvaluationFormPage: React.FC = () => {
 
   // Form input states
   const [selectedClass, setSelectedClass] = useState('');
-  const [selectedCriterion, setSelectedCriterion] = useState<any>(null); // State pour l'objet critère complet
+  const [selectedCriterion, setSelectedCriterion] = useState<any>(null); 
   const [selectedEvaluationTitleId, setSelectedEvaluationTitleId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -633,53 +634,33 @@ export const EvaluationFormPage: React.FC = () => {
               throw new Error("Criterion ID is missing during submission. This should be caught by validation.");
           }
 
-          const baseEvaluation = {
+          const baseEvaluation: any = { // Utiliser 'any' pour permettre l'ajout conditionnel de 'id'
             date,
             comments: evaluation.comments || null,
             class_id: selectedClass,
             teacher_id: user?.id,
             student_id: evaluation.student_id,
-            criterion_id: finalCriterionId, // Utiliser l'ID du critère sélectionné globalement
+            criterion_id: finalCriterionId, 
             value: parseFloat(evaluation.value),
             evaluation_title_id: selectedEvaluationTitleId
           };
 
+          // AJOUT: Inclure 'id' UNIQUEMENT si l'évaluation a déjà un ID (mode édition)
           if (evaluation.id) {
-            return { ...baseEvaluation, id: evaluation.id };
+            baseEvaluation.id = evaluation.id;
           }
+
           return baseEvaluation;
         });
 
-      if (isEditing) {
-        const toUpdate = evaluationsToSave.filter(evaluation => 'id' in evaluation);
-        if (toUpdate.length > 0) {
-          const { error: updateError } = await supabase
-            .from('evaluations')
-            .upsert(toUpdate); 
+      // supabase.upsert() gérera l'insertion (si id est absent) ou la mise à jour (si id est présent)
+      const { error } = await supabase
+        .from('evaluations')
+        .upsert(evaluationsToSave); 
 
-          if (updateError) throw updateError;
-        }
+      if (error) throw error;
 
-        const toInsert = evaluationsToSave.filter(evaluation => !('id' in evaluation));
-        if (toInsert.length > 0) {
-          const { error: insertError } = await supabase
-            .from('evaluations')
-            .insert(toInsert);
-
-          if (insertError) throw insertError;
-        }
-
-        toast.success('Avaliações atualizadas com sucesso');
-      } else {
-        // Pour les nouvelles évaluations, utiliser upsert au lieu de insert
-        const { error } = await supabase
-          .from('evaluations')
-          .upsert(evaluationsToSave); 
-
-        if (error) throw error;
-        toast.success('Avaliações criadas com sucesso');
-      }
-
+      toast.success(isEditing ? 'Avaliações atualizadas com sucesso' : 'Avaliações criadas com sucesso');
       navigate('/evaluations');
     } catch (error: any) {
       console.error('Error saving evaluations:', error.message);
@@ -868,7 +849,7 @@ export const EvaluationFormPage: React.FC = () => {
               <select
                 id="criterion-select"
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-                value={selectedCriterion?.id || ''} // Assurez-vous d'utiliser l'ID pour la valeur du select
+                value={selectedCriterion?.id || ''} 
                 onChange={(e) => handleCriterionChange(e.target.value)}
                 required
                 disabled={isEditing && evaluations.length > 0} 
