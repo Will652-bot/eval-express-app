@@ -37,7 +37,7 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchTeacherTypes();
     checkExistingDemoData();
-  }, [user?.id]);
+  }, [user?.id]); // Ajout user?.id comme dépendance pour fetchTeacherTypes et checkExistingDemoData
 
   const handleSaveEmail = async () => {
     setSaving(true);
@@ -96,6 +96,7 @@ export default function SettingsPage() {
     setDemoDataStatus(status);
   };
 
+  // generateDemoFunctionByType est nécessaire car il y a des fonctions SQL distinctes par type.
   const generateDemoFunctionByType = (typeId: string) => {
     const mapping: { [key: string]: string } = {
       'faculdade': 'generate_demo_data_faculdade',
@@ -125,36 +126,58 @@ export default function SettingsPage() {
   };
 
   const createDemoData = async () => {
+    if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
+      toast.error('Informations de l\'utilisateur incomplètes.');
+      return;
+    }
     for (const id of savedTeacherTypes) {
-      if (!demoDataStatus[id]) {
+      if (!demoDataStatus[id]) { // Seulement si les données de démo n'existent pas encore pour ce type
         const key = await getTeachertypeKey(id);
-        const fn = key && generateDemoFunctionByType(key);
-        if (fn) {
+        const fn = key && generateDemoFunctionByType(key); // Obtient le nom de la fonction SQL
+
+        if (fn) { // Si un nom de fonction valide a été trouvé
           const res = await supabase.rpc(fn, {
             p_user_id: user.id,
             p_user_email: user.email,
-            p_teachertype_id: id,
+            p_teachertype_id: id, // ID du type de professeur (UUID)
           });
-          if (res.error) toast.error(`Erro ao gerar dados: ${key}`);
+          if (res.error) {
+            console.error(`Erro ao gerar dados para ${key}:`, res.error);
+            toast.error(`Erro ao gerar dados: ${key} (${res.error.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
+          } else {
+            toast.success(`Dados de demonstração para ${key} criados!`);
+          }
+        } else {
+          toast.error(`Erro: Função de demonstração não encontrada para o tipo ${key || id}.`); // Si le mapping a échoué
         }
       }
     }
-    toast.success('Dados de demonstração criados');
-    checkExistingDemoData();
+    toast.success('Dados de demonstração criados (processo concluído).'); // Message de succès global
+    checkExistingDemoData(); // Re-vérifier l'état des données de démo
   };
 
   const deleteDemoData = async () => {
+    if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
+      toast.error('Informations de l\'utilisateur incomplètes pour l\'exclusion.');
+      return;
+    }
     for (const id of savedTeacherTypes) {
-      if (demoDataStatus[id]) {
+      if (demoDataStatus[id]) { // Seulement si les données de démo existent pour ce type
         const res = await supabase.rpc('delete_demo_data_by_type', {
           p_user_id: user.id,
+          p_user_email: user.email, // <-- AJOUTÉE : p_user_email pour la fonction de suppression
           p_teachertype_id: id,
         });
-        if (res.error) toast.error('Erro ao excluir dados');
+        if (res.error) {
+          console.error(`Erro ao excluir dados para tipo ${id}:`, res.error);
+          toast.error(`Erro ao excluir dados: ${id} (${res.error.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
+        } else {
+          toast.success(`Dados de demonstração para tipo ${id} excluídos!`);
+        }
       }
     }
-    toast.success('Dados de demonstração excluídos');
-    checkExistingDemoData();
+    toast.success('Dados de demonstração excluídos (processo concluído).'); // Message de succès global
+    checkExistingDemoData(); // Re-vérifier l'état des données de démo
   };
 
   const hasAnyDemo = savedTeacherTypes.some((id) => demoDataStatus[id]);
