@@ -21,6 +21,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 
+// Enregistrement des composants Chart.js
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -65,177 +66,160 @@ export const StandardReport: React.FC = () => {
     lowPerformance: [],
   });
 
-  // ✅ CORRECTION: Détection correcte du plan Pro
   const isPro = user?.current_plan === 'pro' || user?.pro_subscription_active === true;
 
-  const fetchInitialData = useCallback(async () => {
-    const abortController = new AbortController();
-
+  // --- fetchInitialData : Charge les listes de classes, critères, titres ---
+  const fetchInitialData = useCallback(async (signal: AbortSignal) => {
     try {
       const [classesRes, criteriaRes, titlesRes] = await Promise.all([
         supabase
           .from('classes')
           .select('*')
-          .eq('teacher_id', user?.id),
+          .eq('teacher_id', user?.id)
+          .abortSignal(signal),
         supabase
           .from('criteria')
           .select('*')
-          .eq('teacher_id', user?.id),
-        // Fetch from evaluation_titles table
+          .eq('teacher_id', user?.id)
+          .abortSignal(signal),
         supabase
           .from('evaluation_titles')
           .select('id, title')
           .eq('teacher_id', user?.id)
           .order('title')
+          .abortSignal(signal)
       ]);
 
-      if (!abortController.signal.aborted) {
-        if (classesRes.error) throw classesRes.error;
-        if (criteriaRes.error) throw criteriaRes.error;
-        if (titlesRes.error) throw titlesRes.error;
+      if (classesRes.error) throw classesRes.error;
+      if (criteriaRes.error) throw criteriaRes.error;
+      if (titlesRes.error) throw titlesRes.error;
 
-        setClasses(classesRes.data || []);
-        setCriteria(criteriaRes.data || []);
-        setEvaluationTitles(titlesRes.data || []);
-      }
-    } catch (error) {
-      if (!abortController.signal.aborted) {
+      setClasses(classesRes.data || []);
+      setCriteria(criteriaRes.data || []);
+      setEvaluationTitles(titlesRes.data || []);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log('Fetch initial data aborted');
+      } else {
         console.error('Error fetching initial data:', error);
+        toast.error('Erro ao carregar dados iniciais');
       }
     }
+  }, [user?.id, supabase]);
 
-    return () => {
-      abortController.abort();
-    };
-  }, [user?.id]);
+  // --- fetchData : Charge les données de performance pour les graphiques ---
+  const fetchData = useCallback(async (signal: AbortSignal) => {
+    setLoading(true);
 
-  const fetchData = useCallback(async () => {
-    const abortController = new AbortController();
+    let totalsQuery = supabase.from('student_total_with_formatting').select('*').eq('teacher_id', user?.id);
+    if (selectedClasses.length > 0) totalsQuery = totalsQuery.in('class_id', selectedClasses);
+
+    let evaluationsQuery = supabase.from('evaluations_with_score').select('*').eq('teacher_id', user?.id);
+    if (selectedClasses.length > 0) evaluationsQuery = evaluationsQuery.in('class_id', selectedClasses);
+    if (selectedCriteria.length > 0) evaluationsQuery = evaluationsQuery.in('criterion_id', selectedCriteria);
+    if (startDate) evaluationsQuery = evaluationsQuery.gte('date', startDate);
+    if (endDate) evaluationsQuery = evaluationsQuery.lte('date', endDate);
+    if (selectedTitleIds.length > 0) evaluationsQuery = evaluationsQuery.in('evaluation_title_id', selectedTitleIds);
 
     try {
-      setLoading(true);
-      
-      let totalsQuery = supabase
-        .from('student_total_with_formatting')
-        .select('*')
-        .eq('teacher_id', user?.id);
-
-      if (selectedClasses.length > 0) {
-        totalsQuery = totalsQuery.in('class_id', selectedClasses);
-      }
-      
-      // Filter by evaluation_title using the title names from selected IDs
-      if (selectedTitleIds.length > 0) {
-        const selectedTitleNames = evaluationTitles
-          .filter(title => selectedTitleIds.includes(title.id))
-          .map(title => title.title);
+        const [studentTotalsRes, evaluationsRes] = await Promise.all([
+            totalsQuery.abortSignal(signal),
+            evaluationsQuery.abortSignal(signal)
+        ]);
         
-        if (selectedTitleNames.length > 0) {
-          totalsQuery = totalsQuery.in('evaluation_title', selectedTitleNames);
-        }
-      }
+        if (studentTotalsRes.error) throw studentTotalsRes.error;
+        if (evaluationsRes.error) throw evaluationsRes.error;
 
-      let evaluationsQuery = supabase
-        .from('evaluations')
-        .select(`
-          *,
-          student:students(
-            id,
-            first_name,
-            last_name,
-            class:classes(name)
-          ),
-          criteria:criteria(name, min_value, max_value),
-          evaluation_title:evaluation_titles(title)
-        `)
-        .eq('teacher_id', user?.id);
+        const studentTotals = studentTotalsRes.data;
+        const evaluations = evaluationsRes.data;
 
-      if (selectedClasses.length > 0) {
-        evaluationsQuery = evaluationsQuery.in('class_id', selectedClasses);
-      }
-      if (selectedCriteria.length > 0) {
-        evaluationsQuery = evaluationsQuery.in('criterion_id', selectedCriteria);
-      }
-      if (startDate) {
-        evaluationsQuery = evaluationsQuery.gte('date', startDate);
-      }
-      if (endDate) {
-        evaluationsQuery = evaluationsQuery.lte('date', endDate);
-      }
-      if (selectedTitleIds.length > 0) {
-        evaluationsQuery = evaluationsQuery.in('evaluation_title_id', selectedTitleIds);
-      }
-
-      const [studentTotals, evaluations] = await Promise.all([
-        totalsQuery,
-        evaluationsQuery
-      ]);
-
-      if (!abortController.signal.aborted) {
-        if (studentTotals.error) throw studentTotals.error;
-        if (evaluations.error) throw evaluations.error;
+        // --- DÉBUT DES LOGS POUR DÉBOGAGE (À SUPPRIMER APRÈS CORRECTION) ---
+        console.log("Données brutes des évaluations (fetchData):", evaluations); 
+        // --- FIN DES LOGS POUR DÉBOGAGE ---
 
         const classSummary = new Map();
-        studentTotals.data?.forEach(student => {
-          if (!classSummary.has(student.class_name)) {
-            classSummary.set(student.class_name, { sum: 0, count: 0 });
+        evaluations?.forEach(evaluation => {
+          // RESTAURATION : Utilisation de evaluation.percentage (car c'était le nom de colonne qui fonctionnait)
+          const percentage = evaluation.percentage; 
+          // La vérification du type est maintenue pour la robustesse générale
+          if (typeof percentage !== 'number' || isNaN(percentage)) { 
+              console.warn("Skipping non-numeric or NaN percentage in class summary:", evaluation);
+              return; 
           }
-          const classData = classSummary.get(student.class_name);
-          classData.sum += student.total;
+
+          const className = evaluation.class_name || 'Sem Turma';
+          if (!classSummary.has(className)) classSummary.set(className, { sum: 0, count: 0 });
+          const classData = classSummary.get(className);
+          classData.sum += percentage;
           classData.count += 1;
         });
 
+        console.log("Résumé par classe (classSummary):", classSummary); // LOG DE DÉBOGAGE
+
         const criteriaSummary = new Map();
-        evaluations.data?.forEach(evaluation => {
-          const criteriaName = evaluation.criteria.name;
-          if (!criteriaSummary.has(criteriaName)) {
-            criteriaSummary.set(criteriaName, { sum: 0, count: 0 });
+        evaluations?.forEach(evaluation => {
+          // RESTAURATION : Utilisation de evaluation.percentage (car c'était le nom de colonne qui fonctionnait)
+          const percentage = evaluation.percentage; 
+          // La vérification du type est maintenue pour la robustesse générale
+          if (typeof percentage !== 'number' || isNaN(percentage)) { 
+              console.warn("Skipping non-numeric or NaN percentage in criteria summary:", evaluation);
+              return; 
           }
+
+          const criteriaName = evaluation.criterion_name || 'Sem Nome';
+          if (!criteriaSummary.has(criteriaName)) criteriaSummary.set(criteriaName, { sum: 0, count: 0 });
           const criteriaData = criteriaSummary.get(criteriaName);
-          criteriaData.sum += evaluation.value;
+          criteriaData.sum += percentage;
           criteriaData.count += 1;
         });
 
-        const lowPerformers = new Map();
-        studentTotals.data?.forEach(student => {
-          if (student.total < 60) {
-            const studentKey = `${student.first_name} ${student.last_name}`;
-            lowPerformers.set(studentKey, {
-              name: studentKey,
-              class: student.class_name,
-              total: student.total
-            });
-          }
-        });
+        console.log("Résumé par critère (criteriaSummary):", criteriaSummary); // LOG DE DÉBOGAGE
+
+
+        const lowPerformers = studentTotals?.filter(s => {
+          const total = s.total; 
+          return typeof total === 'number' && !isNaN(total) && total < 60;
+        }).map(s => ({
+          name: `${s.first_name} ${s.last_name}`,
+          class: s.class_name,
+          total: s.total
+        })) || [];
 
         const classLabels = Array.from(classSummary.keys());
-        const classAverages = classLabels.map(className => {
-          const { sum, count } = classSummary.get(className);
+        const classAverages = classLabels.map(c => {
+          const { sum, count } = classSummary.get(c);
           return count > 0 ? sum / count : 0;
         });
-        const maxClassAverage = Math.max(...classAverages, 0);
 
         const criteriaLabels = Array.from(criteriaSummary.keys());
-        const criteriaAverages = criteriaLabels.map(criteriaName => {
-          const { sum, count } = criteriaSummary.get(criteriaName);
+        const criteriaAverages = criteriaLabels.map(c => {
+          const { sum, count } = criteriaSummary.get(c);
           return count > 0 ? sum / count : 0;
         });
-        const maxCriteriaAverage = Math.max(...criteriaAverages, 0);
 
         setChartScales({
-          classMax: Math.ceil(maxClassAverage * 1.2),
-          criteriaMax: Math.ceil(maxCriteriaAverage * 1.2)
+          // CONSERVE : Utilisation de Math.max(0, ...) pour gérer les tableaux vides
+          classMax: Math.min(100, Math.ceil(Math.max(0, ...classAverages) * 1.1)), 
+          criteriaMax: Math.min(100, Math.ceil(Math.max(0, ...criteriaAverages) * 1.1)) 
         });
 
-        const lowPerformanceList = Array.from(lowPerformers.values())
-          .sort((a, b) => a.total - b.total)
-          .slice(0, 5);
+        // --- DÉBUT DES LOGS POUR DÉBOGAGE ---
+        console.log("Données finales pour Bar Chart (byClass):", {
+            labels: classLabels,
+            data: classAverages
+        }); 
+        console.log("Données finales pour Radar Chart (byCriteria):", {
+            labels: criteriaLabels,
+            data: criteriaAverages
+        }); 
+        // --- FIN DES LOGS POUR DÉBOGAGE ---
+
 
         setPerformanceData({
           byClass: {
             labels: classLabels,
             datasets: [{
-              label: 'Média da Turma',
+              label: 'Média da Turma (%)',
               data: classAverages,
               backgroundColor: 'rgba(59, 130, 246, 0.5)',
             }],
@@ -243,46 +227,55 @@ export const StandardReport: React.FC = () => {
           byCriteria: {
             labels: criteriaLabels,
             datasets: [{
-              label: 'Média por Critério',
+              label: 'Média por Critério (%)',
               data: criteriaAverages,
               backgroundColor: 'rgba(59, 130, 246, 0.2)',
               borderColor: 'rgba(59, 130, 246, 1)',
-              pointBackgroundColor: 'rgba(59, 130, 246, 1)',
             }],
           },
-          lowPerformance: lowPerformanceList,
+          lowPerformance: lowPerformers.slice(0, 5).sort((a, b) => a.total - b.total),
         });
-      }
-    } catch (error) {
-      if (!abortController.signal.aborted) {
-        console.error('Error fetching report data:', error);
-      }
+
+    } catch (error: any) {
+        if (error.name === 'AbortError') {
+            console.log('Fetch data aborted');
+        } else {
+            console.error('Error fetching data for reports:', error);
+            toast.error('Erro ao carregar dados do relatório.');
+        }
     } finally {
-      if (!abortController.signal.aborted) {
         setLoading(false);
-      }
     }
+  }, [user?.id, selectedClasses, selectedCriteria, selectedTitleIds, startDate, endDate, supabase]);
 
-    return () => {
-      abortController.abort();
-    };
-  }, [user?.id, selectedClasses, selectedCriteria, startDate, endDate, selectedTitleIds, evaluationTitles]);
-
+  // --- useEffect principal pour le chargement initial et la réaction aux changements de filtres ---
   useEffect(() => {
-    const cleanup = fetchInitialData();
-    return () => {
-      cleanup.then(abort => abort());
-    };
-  }, [fetchInitialData]);
+    const abortController = new AbortController();
 
-  useEffect(() => {
-    if (selectedClasses.length > 0 || selectedCriteria.length > 0 || startDate || endDate || selectedTitleIds.length > 0) {
-      const cleanup = fetchData();
-      return () => {
-        cleanup.then(abort => abort());
-      };
-    }
-  }, [fetchData]);
+    const loadReportData = async () => {
+        setLoading(true); 
+        try {
+            // Passer le signal d'abort aux fonctions de fetch
+            await fetchInitialData(abortController.signal); 
+            await fetchData(abortController.signal); 
+        } catch (error) {
+            console.error("Erro inesperado durante o carregamento do relatório:", error);
+            if (error.name !== 'AbortError') {
+                toast.error("Erro no carregamento dos relatórios.");
+            }
+        } finally {
+            // Le setLoading est déjà géré dans fetchData.
+        }
+    };
+    
+    loadReportData(); 
+
+    // Fonction de nettoyage du useEffect : annule la requête si le composant est démonté
+    return () => {
+        abortController.abort(); 
+    };
+  }, [fetchInitialData, fetchData]); 
+
 
   const handleSelectAll = useCallback((type: 'classes' | 'criteria' | 'titles') => {
     switch (type) {
@@ -320,8 +313,119 @@ export const StandardReport: React.FC = () => {
       pdf.save('relatorio-padrao.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
+      toast.error('Erro ao gerar PDF.'); 
     }
   }, [isPro]);
+
+  // Options pour le Bar Chart (Desempenho por Turma)
+  // CONSERVEES : Options robustes de Chart.js
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { 
+        legend: {
+            position: 'top' as const, 
+        },
+        title: {
+            display: false, 
+        },
+        tooltip: {
+            callbacks: {
+                label: function(context: any) { 
+                    let label = context.dataset.label || '';
+                    if (label) {
+                        label += ': ';
+                    }
+                    if (typeof context.parsed.y === 'number' && !isNaN(context.parsed.y)) {
+                        label += context.parsed.y.toFixed(1) + '%';
+                    } else {
+                        label += 'N/A'; 
+                    }
+                    return label;
+                }
+            }
+        }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: chartScales.classMax || 100, 
+        title: { 
+          display: true,
+          text: 'Média (%)'
+        },
+        ticks: {
+            callback: function(value: any) { 
+                if (typeof value === 'number' && !isNaN(value)) {
+                    return value.toFixed(0) + '%'; 
+                }
+                return '';
+            }
+        }
+      },
+      x: {
+        title: { 
+          display: true,
+          text: 'Turma'
+        }
+      }
+    },
+  };
+
+  // Options pour le Radar Chart (Radar de Critérios)
+  // CONSERVEES : Options robustes de Chart.js
+  const radarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { 
+        legend: {
+            position: 'top' as const,
+        },
+        title: {
+            display: false,
+        },
+        tooltip: {
+            callbacks: {
+                label: function(context: any) {
+                    let label = context.dataset.label || '';
+                    if (label) {
+                        label += ': ';
+                    }
+                    if (typeof context.parsed.r === 'number' && !isNaN(context.parsed.r)) { 
+                        label += context.parsed.r.toFixed(1) + '%';
+                    } else {
+                        label += 'N/A'; 
+                    }
+                    return label;
+                }
+            }
+        }
+    },
+    scales: {
+      r: {
+        beginAtZero: true,
+        max: chartScales.criteriaMax || 100, 
+        pointLabels: { 
+            font: {
+                size: 10 
+            }
+        },
+        ticks: {
+            callback: function(value: any) {
+                if (typeof value === 'number' && !isNaN(value)) {
+                    return value.toFixed(0) + '%'; 
+                }
+                return '';
+            }
+        },
+        title: {
+            display: true,
+            text: 'Moyenne (%)' 
+        }
+      },
+    },
+  };
+
 
   return (
     <div className="space-y-6">
@@ -456,7 +560,7 @@ export const StandardReport: React.FC = () => {
               </label>
               <input
                 type="date"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-500 focus:ring focus:ring-primary-500"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -488,16 +592,7 @@ export const StandardReport: React.FC = () => {
             <div className="w-full h-64 sm:h-80">
               <Bar
                 data={performanceData.byClass}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      max: chartScales.classMax || undefined,
-                    },
-                  },
-                }}
+                options={barOptions} // Utilisation de l'objet options défini
               />
             </div>
           </div>
@@ -509,16 +604,7 @@ export const StandardReport: React.FC = () => {
             <div className="w-full h-64 sm:h-80">
               <Radar
                 data={performanceData.byCriteria}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  scales: {
-                    r: {
-                      beginAtZero: true,
-                      max: chartScales.criteriaMax || undefined,
-                    },
-                  },
-                }}
+                options={radarOptions} // Utilisation de l'objet options défini
               />
             </div>
           </div>
