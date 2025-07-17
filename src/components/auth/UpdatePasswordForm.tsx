@@ -25,12 +25,17 @@ export const UpdatePasswordForm: React.FC = () => {
     e.preventDefault();
 
     if (!validatePassword(formData.newPassword)) {
-      toast.error('A nova senha deve conter no mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais');
+      toast.dismiss('invalid-password');
+      toast.error(
+        'A nova senha deve conter no mínimo 8 caracteres, incluindo maiúsculas, minúsculas, números e caracteres especiais.',
+        { id: 'invalid-password' }
+      );
       return;
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      toast.error('As senhas não coincidem');
+      toast.dismiss('mismatch');
+      toast.error('As senhas não coincidem.', { id: 'mismatch' });
       return;
     }
 
@@ -42,14 +47,17 @@ export const UpdatePasswordForm: React.FC = () => {
 
       if (error) throw error;
 
-      toast.success('Senha atualizada com sucesso!');
+      toast.dismiss('update-success');
+      toast.success('Senha atualizada com sucesso!', { id: 'update-success' });
+
       setFormData({
         newPassword: '',
         confirmPassword: '',
       });
     } catch (error: any) {
-      console.error('Error updating password:', error);
-      toast.error(error.message || 'Erro ao atualizar senha');
+      console.error('Erro ao atualizar senha:', error);
+      toast.dismiss('update-error');
+      toast.error(error.message || 'Erro ao atualizar senha.', { id: 'update-error' });
     } finally {
       setLoading(false);
     }
