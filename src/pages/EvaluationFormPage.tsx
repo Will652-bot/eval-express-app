@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input'; // Assuming this is a custom Input component
+import { Input } from '../components/ui/Input';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { FileText, Eye, Download, AlertTriangle, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; 
 import toast from 'react-hot-toast';
+// import { v4 as uuidv4 } from 'uuid'; // <-- ASSUREZ-VOUS QUE CETTE LIGNE EST COMMENTÉE OU SUPPRIMÉE
 
 // Interface for evaluation titles
 interface EvaluationTitle {
@@ -31,21 +32,17 @@ interface EvaluationAttachment {
 
 // New interface for student evaluation data, including comments
 interface StudentEvaluationData {
-  id?: string; // Optional: ID of the existing evaluation record in Supabase
+  id?: string; 
   student_id: string;
   student_name: string;
   criterion_id: string;
   value: string;
-  comments: string; // Added: Comment specific to this student's evaluation
+  comments: string;
 }
 
 export const EvaluationFormPage: React.FC = () => {
   const navigate = useNavigate();
-  const { id } = useParams(); // 'id' is the ID of a single evaluation record for editing
-
-  // AJOUT TEMPORAIRE POUR DÉBOGAGE : Ligne à ajouter pour capturer l'ID dès sa lecture
-  // console.log('ID reçu de useParams dans EvaluationFormPage:', id); 
-  // FIN AJOUT TEMPORAIRE
+  const { id } = useParams();
 
   const { user } = useAuth();
 
@@ -57,7 +54,7 @@ export const EvaluationFormPage: React.FC = () => {
 
   // Data states
   const [classes, setClasses] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]); // Raw student list for the selected class
+  const [students, setStudents] = useState<any[]>([]);
   const [criteria, setCriteria] = useState<any[]>([]);
   const [availableCriteria, setAvailableCriteria] = useState<any[]>([]);
   const [evaluationTitles, setEvaluationTitles] = useState<EvaluationTitle[]>([]);
@@ -65,10 +62,9 @@ export const EvaluationFormPage: React.FC = () => {
 
   // Form input states
   const [selectedClass, setSelectedClass] = useState('');
-  const [selectedCriterion, setSelectedCriterion] = useState<any>(null);
+  const [selectedCriterion, setSelectedCriterion] = useState<any>(null); 
   const [selectedEvaluationTitleId, setSelectedEvaluationTitleId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  // const [comments, setComments] = useState(''); // REMOVED: General comments state
 
   // Multiple evaluations state - now includes 'comments' for each student
   const [evaluations, setEvaluations] = useState<StudentEvaluationData[]>([]);
@@ -84,174 +80,80 @@ export const EvaluationFormPage: React.FC = () => {
     message: ''
   });
 
-  // Determine if we are in editing mode
   const isEditing = !!id;
 
-  // Initial data fetching on component mount or ID change
-  useEffect(() => {
-    const initialize = async () => {
-      await Promise.all([
-        fetchClasses(),
-        fetchCriteria(),
-        fetchEvaluationTitles()
-      ]);
+  // --- Fonctions de gestion des changements de valeur et de commentaire (utilisent useCallback) ---
+  const handleValueChange = useCallback((studentId: string, value: string) => {
+    setEvaluations(prev =>
+      prev.map(evaluation =>
+        evaluation.student_id === studentId
+          ? { ...evaluation, value }
+          : evaluation
+      )
+    );
+  }, []); 
 
-      if (isEditing) {
-        // If editing, fetch the specific evaluation data
-        if (id) {
-          await fetchEvaluation(id); // Passer l'ID comme argument
-        } else {
-          console.error("Erreur: isEditing est vrai mais l'ID de l'évaluation est manquant dans les paramètres de l'URL.");
-          toast.error("Erro ao carregar avaliação: ID ausente.");
-          navigate('/evaluations'); 
-        }
-      }
-    };
+  const handleCommentChange = useCallback((studentId: string, comment: string) => {
+    setEvaluations(prev =>
+      prev.map(evaluation =>
+        evaluation.student_id === studentId
+          ? { ...evaluation, comments: comment }
+          : evaluation
+      )
+    );
+  }, []); 
+  // --- FIN Fonctions de gestion ---
 
-    initialize();
-  }, [id, user?.id, isEditing]); // Added user?.id and isEditing to dependencies for re-fetch on auth change
 
-  // Fetch students when selectedClass changes
-  useEffect(() => {
-    if (selectedClass) {
-      fetchStudents(selectedClass);
-    } else {
-      setStudents([]);
-      setEvaluations([]); // Clear evaluations if no class is selected
-    }
-  }, [selectedClass, isEditing]);
-
-  // Set selected criterion based on the first evaluation's criterion_id (for editing)
-  useEffect(() => {
-    if (evaluations.length > 0 && evaluations[0]?.criterion_id) {
-      const criterion = availableCriteria.find(c => c.id === evaluations[0].criterion_id);
-      setSelectedCriterion(criterion);
-    } else {
-      setSelectedCriterion(null); // Clear criterion if no evaluations or criterion_id
-    }
-  }, [evaluations, availableCriteria]);
-
-  // Filter criteria based on selected evaluation title
-  useEffect(() => {
-    if (selectedEvaluationTitleId) {
-      fetchCriteriaForTitle(selectedEvaluationTitleId);
-    } else {
-      setAvailableCriteria(criteria); // Show all criteria if no title is selected
-    }
-  }, [selectedEvaluationTitleId, criteria]);
-
-  // Check for attached PDF when evaluation title or class changes
-  useEffect(() => {
-    if (selectedEvaluationTitleId && selectedClass) {
-      checkForAttachedPDF();
-    } else {
-      setAttachedPDF(null);
-    }
-  }, [selectedEvaluationTitleId, selectedClass, user?.id]);
-
-  // Auto-fill evaluation title name for display (new evaluation mode)
-  useEffect(() => {
-    if (selectedEvaluationTitleId && !isEditing) {
-      const selectedEvaluationTitle = evaluationTitles.find(
-        evalTitle => evalTitle.id === selectedEvaluationTitleId
-      );
-
-      if (selectedEvaluationTitle) {
-        setEvaluationTitleName(selectedEvaluationTitle.title);
-        setShowTitleField(false); // Do not show editable field when evaluation_title_id is selected
-      }
-    } else if (!selectedEvaluationTitleId && !isEditing) {
-      setEvaluationTitleName('');
-      setShowTitleField(true); // Show editable field when no evaluation_title_id is selected
-    }
-  }, [selectedEvaluationTitleId, evaluationTitles, isEditing]);
-
-  // Control visibility of title field in editing mode
-  useEffect(() => {
-    if (isEditing && selectedEvaluationTitleId) {
-      const selectedEvaluationTitle = evaluationTitles.find(
-        evalTitle => evalTitle.id === selectedEvaluationTitleId
-      );
-
-      if (selectedEvaluationTitle) {
-        setEvaluationTitleName(selectedEvaluationTitle.title);
-        setShowTitleField(false);
-      }
-    } else if (isEditing && !selectedEvaluationTitleId) {
-      setShowTitleField(true); // Show editable field for legacy evaluations without evaluation_title_id
-    }
-  }, [isEditing, selectedEvaluationTitleId, evaluationTitles]);
-
-  // Fetches all classes for the current teacher
-  const fetchClasses = async () => {
+  // --- Fonctions de récupération de données (TOUTES en useCallback pour la stabilité) ---
+  const fetchClasses = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('classes')
         .select('*')
         .eq('teacher_id', user?.id)
         .order('name');
-
       if (error) throw error;
       setClasses(data || []);
     } catch (error: any) {
       console.error('Error fetching classes:', error.message);
       toast.error('Erro ao carregar turmas');
     }
-  };
+  }, [user?.id, supabase]); 
 
-  // Fetches students for a given class and initializes evaluation state
-  const fetchStudents = async (classId: string) => {
-    setLoadingStudents(true);
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('class_id', classId)
-        .order('first_name');
-
-      if (error) throw error;
-      setStudents(data || []);
-
-      // Initialize evaluations for all students if not in editing mode
-      if (!isEditing) {
-        const initialEvaluations: StudentEvaluationData[] = data?.map(student => ({
-          student_id: student.id,
-          student_name: `${student.first_name} ${student.last_name}`,
-          criterion_id: '', // Will be set by handleCriterionChange
-          value: '',
-          comments: '' // Initialize comments for new evaluations
-        })) || [];
-
-        setEvaluations(initialEvaluations);
-      }
-    } catch (error: any) {
-      console.error('Error fetching students:', error.message);
-      toast.error('Erro ao carregar alunos');
-    } finally {
-      setLoadingStudents(false);
-    }
-  };
-
-  // Fetches all criteria for the current teacher
-  const fetchCriteria = async () => {
+  const fetchCriteria = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('criteria')
         .select('*')
         .eq('teacher_id', user?.id)
         .order('name');
-
       if (error) throw error;
       setCriteria(data || []);
-      setAvailableCriteria(data || []); // Initially, all criteria are available
-    } catch (error: any) {
+      setAvailableCriteria(data || []);
+    }
+    catch (error: any) {
       console.error('Error fetching criteria:', error.message);
       toast.error('Erro ao carregar critérios');
     }
-  };
+  }, [user?.id, supabase]); 
 
-  // Fetches criteria specifically linked to an evaluation title
-  const fetchCriteriaForTitle = async (titleId: string) => {
+  const fetchEvaluationTitles = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('evaluation_titles')
+        .select('*')
+        .eq('teacher_id', user?.id)
+        .order('title');
+      if (error) throw error;
+      setEvaluationTitles(data || []);
+    } catch (error: any) {
+      console.error('Error fetching evaluation titles:', error.message);
+      toast.error('Erro ao carregar títulos de avaliação');
+    }
+  }, [user?.id, supabase]); 
+
+  const fetchCriteriaForTitle = useCallback(async (titleId: string) => {
     try {
       const { data, error } = await supabase
         .from('evaluation_title_criteria')
@@ -269,35 +171,15 @@ export const EvaluationFormPage: React.FC = () => {
       if (titleCriteria.length > 0) {
         setAvailableCriteria(titleCriteria);
       } else {
-        // If no criteria are explicitly associated with this title, show all criteria
-        setAvailableCriteria(criteria);
+        setAvailableCriteria(criteria); 
       }
     } catch (error: any) {
       console.error('Error fetching criteria for title:', error.message);
-      // Fallback to all criteria if there's an error
       setAvailableCriteria(criteria);
     }
-  };
+  }, [user?.id, criteria, supabase]); 
 
-  // Fetches all evaluation titles for the current teacher
-  const fetchEvaluationTitles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('evaluation_titles')
-        .select('*')
-        .eq('teacher_id', user?.id)
-        .order('title');
-
-      if (error) throw error;
-      setEvaluationTitles(data || []);
-    } catch (error: any) {
-      console.error('Error fetching evaluation titles:', error.message);
-      toast.error('Erro ao carregar títulos de avaliação');
-    }
-  };
-
-  // Checks for and sets attached PDF for the selected title and class
-  const checkForAttachedPDF = async () => {
+  const checkForAttachedPDF = useCallback(async () => {
     try {
       setLoadingPDF(true);
       const { data, error } = await supabase
@@ -308,16 +190,309 @@ export const EvaluationFormPage: React.FC = () => {
         .eq('teacher_id', user?.id)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
+      if (error && error.code !== 'PGRST116') throw error;
 
       setAttachedPDF(data);
-    } catch (error: any) {
+    }
+    catch (error: any) {
       console.error('Error checking for attached PDF:', error.message);
       toast.error('Erro ao verificar anexos');
     } finally {
       setLoadingPDF(false);
     }
-  };
+  }, [selectedEvaluationTitleId, selectedClass, user?.id, supabase]); 
+
+  const fetchStudents = useCallback(async (classId: string) => {
+    setLoadingStudents(true);
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, first_name, last_name')
+        .eq('class_id', classId)
+        .order('first_name');
+
+      if (error) throw error;
+      setStudents(data || []);
+
+      if (data) {
+        const initialEvaluations: StudentEvaluationData[] = data.map(student => ({
+          student_id: student.id,
+          student_name: `${student.first_name} ${student.last_name}`,
+          criterion_id: selectedCriterion?.id || '', 
+          value: '',
+          comments: ''
+        }));
+        setEvaluations(initialEvaluations);
+      } else if (!data || data.length === 0) {
+        setEvaluations([]);
+      }
+    } catch (error: any) {
+      console.error('Error fetching students:', error.message);
+      toast.error('Erro ao carregar alunos');
+    } finally {
+      setLoadingStudents(false);
+    }
+  }, [selectedCriterion?.id, supabase, setEvaluations]); 
+
+  const fetchEvaluation = useCallback(async (evaluationId: string) => { 
+    setLoading(true);
+    try {
+      const { data: singleEvaluationRecord, error: singleFetchError } = await supabase
+          .from('evaluations')
+          .select(`date, class_id, criterion_id, evaluation_title_id`)
+          .eq('id', evaluationId)
+          .eq('teacher_id', user?.id)
+          .single();
+
+      if (singleFetchError) {
+          console.error('Error fetching single evaluation record to identify group:', singleFetchError.message);
+          toast.error('Avaliação não encontrada ou sem permissão.');
+          navigate('/evaluations');
+          return;
+      }
+
+      const { date: groupDate, class_id: groupClassId, criterion_id: groupCriterionId, evaluation_title_id: groupEvaluationTitleId } = singleEvaluationRecord;
+
+      setDate(new Date(groupDate).toISOString().split('T')[0]);
+      setSelectedClass(groupClassId);
+      setSelectedEvaluationTitleId(groupEvaluationTitleId || '');
+
+      await fetchStudents(groupClassId); 
+
+      const { data: existingEvaluations, error: evalError } = await supabase
+          .from('evaluations')
+          .select(`id, student_id, value, comments`)
+          .eq('class_id', groupClassId)
+          .eq('criterion_id', groupCriterionId)
+          .eq('date', groupDate) 
+          .eq('teacher_id', user?.id);
+
+      if (evalError) throw evalError;
+
+      setEvaluations(currentEvaluations => {
+        const evaluationsMap = new Map<string, Omit<StudentEvaluationData, 'student_name'>>();
+        existingEvaluations?.forEach(evaluation => {
+            evaluationsMap.set(evaluation.student_id, {
+                id: evaluation.id,
+                student_id: evaluation.student_id,
+                criterion_id: groupCriterionId,
+                value: evaluation.value?.toString() || '',
+                comments: evaluation.comments || ''
+            });
+        });
+
+        return (currentEvaluations || []).map(studentEval => {
+          const existing = evaluationsMap.get(studentEval.student_id);
+          return {
+            ...studentEval, 
+            criterion_id: existing?.criterion_id || groupCriterionId, 
+            value: existing?.value || '',
+            comments: existing?.comments || '',
+            id: existing?.id 
+          };
+        });
+      });
+
+    } catch (error: any) {
+      console.error('Error fetching evaluation group:', error.message);
+      toast.error('Erro ao carregar avaliação. Redireccionando...');
+      navigate('/evaluations');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, navigate, supabase, fetchStudents, setEvaluations]); 
+  // --- FIN Fonctions de récupération de données ---
+
+
+  // --- useEffects pour le chargement des données et la logique du formulaire ---
+
+  // Effet pour l'initialisation générale et le chargement d'évaluation en mode édition
+  useEffect(() => {
+    const initialize = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([
+          fetchClasses(), 
+          fetchCriteria(),
+          fetchEvaluationTitles()
+        ]);
+
+        if (isEditing) {
+          if (id) {
+            await fetchEvaluation(id); 
+          } else {
+            console.error("Erreur: isEditing est vrai mais l'ID de l'évaluation est manquant dans les paramètres de l'URL.");
+            toast.error("Erro ao carregar avaliação: ID ausente.");
+            navigate('/evaluations'); 
+          }
+        } 
+      } catch (err: any) {
+        console.error("Erreur d'initialisation du formulário:", err.message);
+        toast.error('Erro ao iniciar formulário.');
+        navigate('/evaluations');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initialize();
+  }, [id, user?.id, isEditing, navigate, fetchClasses, fetchCriteria, fetchEvaluationTitles, fetchEvaluation]); 
+
+
+  // Effet pour charger les étudiants quand la classe sélectionnée change
+  useEffect(() => {
+    if (selectedClass) {
+      fetchStudents(selectedClass); 
+    } else {
+      setStudents([]);
+      if (!isEditing) { 
+        setEvaluations([]); 
+      }
+    }
+  }, [selectedClass, isEditing, fetchStudents]); 
+
+
+  // Effet pour définir le critère sélectionné (principalement en mode édition)
+  // et s'assurer que availableCriteria est prêt.
+  useEffect(() => {
+    if (evaluations.length > 0 && evaluations[0]?.criterion_id && availableCriteria.length > 0) {
+      const criterion = availableCriteria.find(c => c.id === evaluations[0].criterion_id);
+      setSelectedCriterion(criterion || null);
+    } else if (evaluations.length === 0) {
+      setSelectedCriterion(null);
+    }
+  }, [evaluations, availableCriteria]);
+
+
+  // Effet pour filtrer les critères basés sur le titre d'évaluation sélectionné
+  useEffect(() => {
+    if (selectedEvaluationTitleId) {
+      fetchCriteriaForTitle(selectedEvaluationTitleId); 
+    } else {
+      setAvailableCriteria(criteria);
+    }
+  }, [selectedEvaluationTitleId, criteria, fetchCriteriaForTitle]); 
+
+
+  // Effet pour vérifier et afficher le PDF attaché
+  useEffect(() => {
+    if (selectedEvaluationTitleId && selectedClass) {
+      checkForAttachedPDF(); 
+    } else {
+      setAttachedPDF(null);
+    }
+  }, [selectedEvaluationTitleId, selectedClass, user?.id, checkForAttachedPDF]); 
+
+
+  // Effet pour auto-remplir le nom du titre d'évaluation affiché
+  useEffect(() => {
+    if (selectedEvaluationTitleId && !isEditing) {
+      const selectedEvaluationTitle = evaluationTitles.find(
+        evalTitle => evalTitle.id === selectedEvaluationTitleId
+      );
+
+      if (selectedEvaluationTitle) {
+        setEvaluationTitleName(selectedEvaluationTitle.title);
+        setShowTitleField(false);
+      }
+    } else if (!selectedEvaluationTitleId && !isEditing) {
+      setEvaluationTitleName('');
+      setShowTitleField(true);
+    }
+  }, [selectedEvaluationTitleId, evaluationTitles, isEditing]);
+
+
+  // Effet pour contrôler la visibilité du champ de titre en mode édition
+  useEffect(() => {
+    if (isEditing && selectedEvaluationTitleId) {
+      const selectedEvaluationTitle = evaluationTitles.find(
+        evalTitle => evalTitle.id === selectedEvaluationTitleId
+      );
+
+      if (selectedEvaluationTitle) {
+        setEvaluationTitleName(selectedEvaluationTitle.title);
+        setShowTitleField(false);
+      }
+    } else if (isEditing && !selectedEvaluationTitleId) {
+      setShowTitleField(true);
+    }
+  }, [isEditing, selectedEvaluationTitleId, evaluationTitles]);
+
+
+  // NOUVEL Effet : Récupérer et pré-remplir les évaluations existantes pour le mode "Nouvelle Évaluation"
+  useEffect(() => {
+    if (isEditing || !user || !selectedClass || !selectedCriterion?.id || !selectedEvaluationTitleId || students.length === 0) {
+        return; 
+    }
+
+    setLoadingStudents(true); 
+    const fetchExistingEvalsForPreFill = async () => {
+      try {
+        const { data: existingEvals, error } = await supabase
+          .from('evaluations')
+          .select(`id, student_id, value, comments, date`) 
+          .eq('class_id', selectedClass)
+          .eq('criterion_id', selectedCriterion.id)
+          .eq('evaluation_title_id', selectedEvaluationTitleId)
+          .eq('teacher_id', user.id)
+          .order('date', { ascending: false }) 
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const existingEvalsMap = new Map<string, Pick<StudentEvaluationData, 'id' | 'value' | 'comments'>>();
+        existingEvals?.forEach(evalItem => {
+            if (!existingEvalsMap.has(evalItem.student_id)) { 
+                existingEvalsMap.set(evalItem.student_id, {
+                    id: evalItem.id,
+                    value: evalItem.value?.toString() || '',
+                    comments: evalItem.comments || ''
+                });
+            }
+        });
+
+        setEvaluations(currentEvaluations => {
+            if (!currentEvaluations || currentEvaluations.length === 0) {
+                return students.map(student => {
+                    const existing = existingEvalsMap.get(student.id);
+                    return {
+                        student_id: student.id,
+                        student_name: `${student.first_name} ${student.last_name}`,
+                        criterion_id: selectedCriterion.id,
+                        value: existing?.value || '',
+                        comments: existing?.comments || '',
+                        id: existing?.id
+                    };
+                });
+            }
+
+            return currentEvaluations.map(evaluation => {
+                const existing = existingEvalsMap.get(evaluation.student_id);
+                if (existing) {
+                    return {
+                        ...evaluation,
+                        value: existing.value,
+                        comments: existing.comments,
+                        id: existing.id 
+                    };
+                }
+                return evaluation; 
+            });
+        });
+
+      } catch (error: any) {
+        console.error('Error fetching existing evaluations for pre-fill:', error.message);
+        toast.error('Erro ao pré-carregar avaliações existentes.');
+      } finally {
+        setLoadingStudents(false);
+      }
+    };
+
+    fetchExistingEvalsForPreFill();
+  }, [user, isEditing, selectedClass, selectedCriterion, selectedEvaluationTitleId, students, supabase, setEvaluations]);
+
+  // --- FIN useEffects ---
+
 
   // Handles viewing the attached PDF in a new tab
   const handleViewPDF = async () => {
@@ -326,7 +501,7 @@ export const EvaluationFormPage: React.FC = () => {
     try {
       const { data, error } = await supabase.storage
         .from('evaluation-attachments')
-        .createSignedUrl(attachedPDF.file_path, 3600); // 1 hour expiry
+        .createSignedUrl(attachedPDF.file_path, 3600); 
 
       if (error) throw error;
 
@@ -371,131 +546,18 @@ export const EvaluationFormPage: React.FC = () => {
     }
   };
 
-  // Fetches a single evaluation record by ID and populates the form for editing
-  // Accepte evaluationId comme argument pour une meilleure clarté et testabilité
-  const fetchEvaluation = async (evaluationId: string) => { 
-    try {
-      // 1. Fetch the primary evaluation record to get common data (class_id, criterion_id, date, evaluation_title_id, student_id)
-      // This query is simplified to avoid complex embedding that causes parsing issues.
-      const { data: mainEvaluation, error: mainError } = await supabase
-        .from('evaluations')
-        .select(`id, date, comments, class_id, teacher_id, student_id, criterion_id, value, evaluation_title_id`)
-        .eq('id', evaluationId)
-        .single();
-
-      if (mainError) throw mainError;
-
-      if (mainEvaluation) {
-        // Set common form fields from the main evaluation
-        setDate(new Date(mainEvaluation.date).toISOString().split('T')[0]);
-        setSelectedClass(mainEvaluation.class_id);
-        setSelectedEvaluationTitleId(mainEvaluation.evaluation_title_id || '');
-
-        // 2. Fetch evaluation title details separately
-        let displayTitle = '';
-        if (mainEvaluation.evaluation_title_id) {
-          const { data: titleData, error: titleError } = await supabase
-            .from('evaluation_titles')
-            .select('title')
-            .eq('id', mainEvaluation.evaluation_title_id)
-            .single();
-          if (titleError) console.error('Error fetching evaluation title:', titleError.message);
-          displayTitle = titleData?.title || '';
-        }
-        setEvaluationTitleName(displayTitle);
-        setShowTitleField(!mainEvaluation.evaluation_title_id); // Show editable field if no evaluation_title_id
-
-        // 3. Fetch all students for this class to ensure the full grid is displayed
-        const { data: classStudents, error: studentsError } = await supabase
-          .from('students')
-          .select('id, first_name, last_name') // Select only necessary student fields
-          .eq('class_id', mainEvaluation.class_id)
-          .order('first_name');
-        if (studentsError) throw studentsError;
-
-        // 4. Fetch all relevant evaluation records for this group (class, date, criterion, evaluation_title_id)
-        // This query now fetches all student-specific values and comments for the group.
-        const { data: existingEvaluations, error: evalError } = await supabase
-          .from('evaluations')
-          .select(`id, student_id, value, comments`) // Simplified select for actual evaluation data
-          .eq('class_id', mainEvaluation.class_id)
-          .eq('criterion_id', mainEvaluation.criterion_id)
-          .eq('date', mainEvaluation.date)
-          .eq('teacher_id', user?.id); // Ensure only current user's evaluations are fetched
-
-        if (evalError) throw evalError;
-
-        // Map existing evaluations to students for easy lookup
-        const evaluationsMap = new Map<string, Omit<StudentEvaluationData, 'student_name'>>();
-        existingEvaluations?.forEach(evaluation => {
-          evaluationsMap.set(evaluation.student_id, {
-            id: evaluation.id,
-            student_id: evaluation.student_id,
-            criterion_id: mainEvaluation.criterion_id, // Common criterion for the group
-            value: evaluation.value?.toString() || '',
-            comments: evaluation.comments || ''
-          });
-        });
-
-        // Create the final evaluations array, combining all students with their existing evaluation data
-        const allEvaluations: StudentEvaluationData[] = classStudents?.map(student => {
-          const existing = evaluationsMap.get(student.id);
-          return {
-            student_id: student.id,
-            student_name: `${student.first_name} ${student.last_name}`,
-            criterion_id: existing?.criterion_id || mainEvaluation.criterion_id, // Ensure criterion_id is set
-            value: existing?.value || '',
-            comments: existing?.comments || '',
-            id: existing?.id // Pass the evaluation record ID if it exists
-          };
-        }) || [];
-
-        setEvaluations(allEvaluations);
-      }
-    } catch (error: any) {
-      console.error('Error fetching evaluation:', error.message);
-      toast.error('Erro ao carregar avaliação');
-      navigate('/evaluations'); // Redirect if evaluation not found or error
-    }
-  };
-
   // Handles change in selected criterion
   const handleCriterionChange = (criterionId: string) => {
     const criterion = availableCriteria.find(c => c.id === criterionId);
-    setSelectedCriterion(criterion);
+    setSelectedCriterion(criterion); 
 
-    // Update criterion_id for all students in the evaluations state
     setEvaluations(prev =>
       prev.map(evaluation => ({
         ...evaluation,
         criterion_id: criterionId,
-        // Reset value if criterion changes, unless it's the same criterion
-        // This logic might need adjustment based on desired UX
         value: evaluation.criterion_id !== criterionId ? '' : evaluation.value,
-        comments: evaluation.criterion_id !== criterionId ? '' : evaluation.comments // Also reset comments
+        comments: evaluation.criterion_id !== criterionId ? '' : evaluation.comments
       }))
-    );
-  };
-
-  // Handles value change for a specific student's evaluation
-  const handleValueChange = (studentId: string, value: string) => {
-    setEvaluations(prev =>
-      prev.map(evaluation =>
-        evaluation.student_id === studentId
-          ? { ...evaluation, value }
-          : evaluation
-      )
-    );
-  };
-
-  // NEW: Handles comment change for a specific student's evaluation
-  const handleCommentChange = (studentId: string, comment: string) => {
-    setEvaluations(prev =>
-      prev.map(evaluation =>
-        evaluation.student_id === studentId
-          ? { ...evaluation, comments: comment }
-          : evaluation
-      )
     );
   };
 
@@ -515,21 +577,24 @@ export const EvaluationFormPage: React.FC = () => {
       toast.error('Informe uma data para a avaliação');
       return false;
     }
-
-    const criterionId = evaluations[0]?.criterion_id;
-    if (!criterionId) {
-      toast.error('Selecione um critério');
-      return false;
+    
+    if (!selectedCriterion || !selectedCriterion.id) {
+        toast.error('Selecione un critère valide.');
+        return false;
     }
 
-    // Check if at least one student has a value
+    const hasCorrectCriterionId = evaluations.every(evalItem => evalItem.criterion_id === selectedCriterion.id);
+    if (!hasCorrectCriterionId) {
+        toast.error('O ID do critère não corresponde para todas as avaliações. Por favor, selecione o critère novamente.');
+        return false;
+    }
+
     const hasValues = evaluations.some(evaluation => evaluation.value && evaluation.value.trim() !== '');
     if (!hasValues) {
       toast.error('Informe pelo menos um valor de avaliação');
       return false;
     }
 
-    // Validate values against criterion min/max
     if (selectedCriterion) {
       const invalidValues = evaluations
         .filter(evaluation => evaluation.value && evaluation.value.trim() !== '')
@@ -558,64 +623,58 @@ export const EvaluationFormPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // Filter out evaluations with no values, and map to Supabase schema
       const evaluationsToSave = evaluations
         .filter(evaluation => evaluation.value && evaluation.value.trim() !== '')
         .map(evaluation => {
-          // Base object for an evaluation record
-          const baseEvaluation = {
+          const finalCriterionId = selectedCriterion?.id; 
+          if (!finalCriterionId) {
+              throw new Error("Criterion ID is missing during submission. This should be caught by validation.");
+          }
+
+          const baseEvaluation: any = { 
             date,
-            comments: evaluation.comments || null, // Use student-specific comment
+            comments: evaluation.comments || null,
             class_id: selectedClass,
             teacher_id: user?.id,
             student_id: evaluation.student_id,
-            criterion_id: evaluation.criterion_id,
+            criterion_id: finalCriterionId, 
             value: parseFloat(evaluation.value),
             evaluation_title_id: selectedEvaluationTitleId
           };
 
-          // If editing an existing record, include its ID
-          if (evaluation.id) {
-            return { ...baseEvaluation, id: evaluation.id };
+          // MODIFICATION CLÉ ICI : Inclure 'id' UNIQUEMENT si evaluation.id existe déjà.
+          // Sinon, l'ID sera généré par la base de données (DEFAULT gen_random_uuid()).
+          if (evaluation.id) { 
+            baseEvaluation.id = evaluation.id;
           }
+
           return baseEvaluation;
         });
 
-      if (isEditing) {
-        // For editing, we need to handle updates and inserts separately
-        // Records with an 'id' are existing and need to be updated
-        const toUpdate = evaluationsToSave.filter(evaluation => 'id' in evaluation);
-        if (toUpdate.length > 0) {
-          // Use upsert to update existing records
-          const { error: updateError } = await supabase
-            .from('evaluations')
-            .upsert(toUpdate); // Upsert handles update if ID exists
+      // Séparez les insertions des mises à jour
+      const toUpdate = evaluationsToSave.filter(evaluation => 'id' in evaluation);
+      const toInsert = evaluationsToSave.filter(evaluation => !('id' in evaluation));
 
-          if (updateError) throw updateError;
-        }
-
-        // Records without an 'id' are new and need to be inserted
-        const toInsert = evaluationsToSave.filter(evaluation => !('id' in evaluation));
-        if (toInsert.length > 0) {
-          const { error: insertError } = await supabase
-            .from('evaluations')
-            .insert(toInsert);
-
-          if (insertError) throw insertError;
-        }
-
-        toast.success('Avaliações atualizadas com sucesso');
-      } else {
-        // For new evaluations, insert all records
-        const { error } = await supabase
+      // Effectuez les mises à jour
+      if (toUpdate.length > 0) {
+        const { error: updateError } = await supabase
           .from('evaluations')
-          .insert(evaluationsToSave);
-
-        if (error) throw error;
-        toast.success('Avaliações criadas com sucesso');
+          .upsert(toUpdate, { 
+              onConflict: 'student_id, criterion_id, class_id, date, evaluation_title_id' // Utilisez onConflict pour les mises à jour
+          }); 
+        if (updateError) throw updateError;
       }
 
-      navigate('/evaluations'); // Redirect after successful save
+      // Effectuez les insertions
+      if (toInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('evaluations')
+          .insert(toInsert); // Utilisez insert pour les nouveaux enregistrements (l'ID sera généré)
+        if (insertError) throw insertError;
+      }
+
+      toast.success(isEditing ? 'Avaliações atualizadas com sucesso' : 'Avaliações criadas com sucesso');
+      navigate('/evaluations');
     } catch (error: any) {
       console.error('Error saving evaluations:', error.message);
       toast.error('Erro ao salvar avaliações');
@@ -629,17 +688,16 @@ export const EvaluationFormPage: React.FC = () => {
     setConfirmDialog({
       isOpen: true,
       title: 'Excluir Avaliação',
-      message: `Tem certeza que deseja excluir a avaliação "${evaluationTitleName}"? Esta ação não pode ser desfeita e excluirá todas as avaliações associées.`
+      message: `Tem certeza que deseja excluir a avaliação "${evaluationTitleName}"? Esta ação non pode ser desfeita e excluirá todas as avaliações associées.`
     });
   };
 
   // Handles the actual deletion of evaluations
   const handleConfirmDelete = async () => {
-    if (!isEditing || !id) return; // Ensure we are in editing mode and have an ID
+    if (!isEditing || !id) return;
 
     setDeleting(true);
     try {
-      // Get the initial evaluation data to find related evaluations for deletion
       const { data: evaluationData, error: fetchError } = await supabase
         .from('evaluations')
         .select('*')
@@ -648,32 +706,31 @@ export const EvaluationFormPage: React.FC = () => {
 
       if (fetchError) throw fetchError;
 
-      // Security check: Ensure the evaluation belongs to the current user
       if (evaluationData.teacher_id !== user?.id) {
-        toast.error('Você non a permissão para excluir esta avaliação');
+        toast.error('Você não tem permissão para excluir esta avaliação');
+        setDeleting(false);
+        setConfirmDialog({ isOpen: false, title: '', message: '' });
         return;
       }
 
-      // Delete all evaluations with the same date, criterion, class, and evaluation_title_id
       let deleteQuery = supabase
         .from('evaluations')
         .delete()
         .eq('date', evaluationData.date)
         .eq('criterion_id', evaluationData.criterion_id)
         .eq('class_id', evaluationData.class_id)
-        .eq('teacher_id', user?.id); // Security check
+        .eq('teacher_id', user?.id);
 
-      // If there's an evaluation_title_id, use it for more precise deletion
       if (evaluationData.evaluation_title_id) {
         deleteQuery = deleteQuery.eq('evaluation_title_id', evaluationData.evaluation_title_id);
       }
 
       const { error: deleteError } = await deleteQuery;
 
-      if (deleteError) throw deleteError;
+      if (deleteError) throw error;
 
       toast.success('Avaliação excluída com sucesso');
-      navigate('/evaluations'); // Redirect after successful deletion
+      navigate('/evaluations');
     } catch (error: any) {
       console.error('Error deleting evaluation:', error.message);
       toast.error('Erro ao excluir avaliação');
@@ -688,13 +745,21 @@ export const EvaluationFormPage: React.FC = () => {
     const aHasValue = a.value && a.value.trim() !== '';
     const bHasValue = b.value && b.value.trim() !== '';
 
-    // Prioritize students with values
     if (aHasValue && !bHasValue) return -1;
     if (!aHasValue && bHasValue) return 1;
 
-    // Then sort alphabetically by student name
     return a.student_name.localeCompare(b.student_name);
   });
+
+  // Global loading overlay to prevent interaction and show status
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+        <p className="ml-4 text-xl text-primary-600">Carregando formulário...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -767,7 +832,7 @@ export const EvaluationFormPage: React.FC = () => {
               </select>
               {selectedEvaluationTitleId && availableCriteria.length < criteria.length && (
                 <p className="text-xs text-blue-600 mt-1">
-                  ℹ️ Critérios filtrados baseados no título selecionado
+                  ℹ️ Critères filtrés baseados no título selecionado
                 </p>
               )}
             </div>
@@ -797,12 +862,12 @@ export const EvaluationFormPage: React.FC = () => {
               <select
                 id="criterion-select"
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-                value={evaluations[0]?.criterion_id || ''}
+                value={selectedCriterion?.id || ''} 
                 onChange={(e) => handleCriterionChange(e.target.value)}
                 required
-                disabled={isEditing && evaluations.length > 0} // Disable if editing and evaluations exist
+                disabled={isEditing && evaluations.length > 0} 
               >
-                <option value="">Selecione um critério</option>
+                <option value="">Selecione un critère</option>
                 {availableCriteria.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.min_value} - {c.max_value})
@@ -811,14 +876,14 @@ export const EvaluationFormPage: React.FC = () => {
               </select>
               {availableCriteria.length === 0 && (
                 <p className="text-sm text-error-600">
-                  Nenhum critério encontrado.{' '}
+                  Nenhum critère encontrado.{' '}
                   <Button
                     variant="ghost"
                     size="sm"
                     type="button"
                     onClick={() => navigate('/criteria/new')}
                   >
-                    Criar critério
+                    Criar critère
                   </Button>
                 </p>
               )}
@@ -878,21 +943,6 @@ export const EvaluationFormPage: React.FC = () => {
             </div>
           ) : null}
 
-          {/* REMOVED: General Comments Section */}
-          {/*
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Comentários
-            </label>
-            <textarea
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
-              rows={3}
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-            />
-          </div>
-          */}
-
           {/* Student Evaluations Table - Now includes comments column */}
           {selectedClass && (
             <div className="mt-6">
@@ -904,7 +954,6 @@ export const EvaluationFormPage: React.FC = () => {
                   <p className="mt-2 text-gray-500">Carregando alunos...</p>
                 </div>
               ) : students.length === 0 ? (
-                // CORRECTION ICI: Suppression de la balise </p> en trop
                 <div className="text-center py-6 bg-gray-50 rounded-lg">
                   <p className="text-gray-500">Nenhum aluno encontrado nesta turma.</p>
                   <Button
@@ -951,16 +1000,17 @@ export const EvaluationFormPage: React.FC = () => {
                                 min={selectedCriterion?.min_value}
                                 max={selectedCriterion?.max_value}
                                 placeholder={selectedCriterion ? `${selectedCriterion.min_value}-${selectedCriterion.max_value}` : ''}
+                                disabled={false} 
                               />
                             </td>
                             {/* NEW: Comments Input for each student */}
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 w-full">
                               <textarea
                                 className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50"
-                                rows={2} // Adjust rows as needed for comments
+                                rows={2}
                                 value={evaluation.comments}
                                 onChange={(e) => handleCommentChange(evaluation.student_id, e.target.value)}
-                                placeholder="Adicionar comentário..."
+                                placeholder="Adicionar commentaire..."
                               />
                             </td>
                           </tr>
@@ -996,7 +1046,7 @@ export const EvaluationFormPage: React.FC = () => {
                 Cancelar
               </Button>
               <Button type="submit" isLoading={loading}>
-                {isEditing ? 'Salvar Alterações' : 'Criar Avaliações'}
+                {isEditing ? 'Salvar Alterações' : 'Créer Avaliações'}
               </Button>
             </div>
           </div>
