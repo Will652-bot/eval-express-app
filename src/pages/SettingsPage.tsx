@@ -130,30 +130,49 @@ export default function SettingsPage() {
       toast.error('Informations de l\'utilisateur incomplètes.');
       return;
     }
+    let allSucceeded = true; // Drapeau pour le succès global
+    let createdCount = 0;   // Compteur des créations réussies
+
     for (const id of savedTeacherTypes) {
       if (!demoDataStatus[id]) { // Seulement si les données de démo n'existent pas encore pour ce type
         const key = await getTeachertypeKey(id);
         const fn = key && generateDemoFunctionByType(key); // Obtient le nom de la fonction SQL
 
         if (fn) { // Si un nom de fonction valide a été trouvé
-          const res = await supabase.rpc(fn, {
-            p_user_id: user.id,
-            p_user_email: user.email,
-            p_teachertype_id: id, // ID du type de professeur (UUID)
-          });
-          if (res.error) {
-            console.error(`Erro ao gerar dados para ${key}:`, res.error);
-            toast.error(`Erro ao gerar dados: ${key} (${res.error.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
-          } else {
-            toast.success(`Dados de demonstração para ${key} criados!`);
+          try {
+            const res = await supabase.rpc(fn, {
+              p_user_id: user.id,
+              p_user_email: user.email,
+              p_teachertype_id: id, // ID du type de professeur (UUID)
+            });
+            if (res.error) {
+              allSucceeded = false; // Marquer l'échec
+              console.error(`Erro ao gerar dados para ${key}:`, res.error);
+              toast.error(`Erro ao gerar dados: ${key} (${res.error.message || res.error.details || 'erro desconhecido'})`); // Message d'erreur plus détaillé
+            } else {
+              createdCount++; // Incrémenter le compteur de succès
+            }
+          } catch (e: any) { // Attraper les erreurs réseau, etc.
+            allSucceeded = false; // Marquer l'échec
+            console.error(`Erro inesperado ao gerar dados para ${key}:`, e);
+            toast.error(`Erro inesperado ao gerar dados: ${key} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
           }
         } else {
+          allSucceeded = false; // Marquer l'échec si la fonction n'est pas trouvée
           toast.error(`Erro: Função de demonstração não encontrada para o tipo ${key || id}.`); // Si le mapping a échoué
         }
       }
     }
-    toast.success('Dados de demonstração criados (processo concluído).'); // Message de succès global
-    checkExistingDemoData(); // Re-vérifier l'état des données de démo
+
+    // Messages de résumé global après la boucle
+    if (allSucceeded && createdCount > 0) {
+        toast.success(`Dados de demonstração criados com sucesso para ${createdCount} tipo(s)!`);
+    } else if (!allSucceeded) {
+        toast.error('O processo de geração de dados de demonstração foi concluído com erros.');
+    } else { // createdCount est 0 et allSucceeded est true (aucun nouveau type à créer)
+        toast.info('Nenhum dado de demonstração novo foi criado.');
+    }
+    checkExistingDemoData(); // Re-vérifier l'état des dados de démo após tout
   };
 
   const deleteDemoData = async () => {
@@ -161,23 +180,42 @@ export default function SettingsPage() {
       toast.error('Informations de l\'utilisateur incomplètes pour l\'exclusion.');
       return;
     }
-    for (const id of savedTeacherTypes) {
+    let allSucceeded = true; // Drapeau pour le succès global
+    let deletedCount = 0;   // Compteur des suppressions réussies
+
+    // MODIFICATION CLÉ ICI : Itérer sur selectedTeacherTypes au lieu de savedTeacherTypes
+    for (const id of selectedTeacherTypes) { 
       if (demoDataStatus[id]) { // Seulement si les données de démo existent pour ce type
-        const res = await supabase.rpc('delete_demo_data_by_type', {
-          p_user_id: user.id,
-          p_user_email: user.email, // <-- AJOUTÉE : p_user_email pour la fonction de suppression
-          p_teachertype_id: id,
-        });
-        if (res.error) {
-          console.error(`Erro ao excluir dados para tipo ${id}:`, res.error);
-          toast.error(`Erro ao excluir dados: ${id} (${res.error.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
-        } else {
-          toast.success(`Dados de demonstração para tipo ${id} excluídos!`);
+        try {
+          const res = await supabase.rpc('delete_demo_data_by_type', {
+            p_user_id: user.id,
+            p_user_email: user.email, 
+            p_teachertype_id: id,
+          });
+          if (res.error) {
+            allSucceeded = false; // Marquer l'échec
+            console.error(`Erro ao excluir dados para tipo ${id}:`, res.error);
+            toast.error(`Erro ao excluir dados: ${id} (${res.error.message || res.error.details || 'erro desconhecido'})`); // Message d'erreur plus détaillé
+          } else {
+            deletedCount++; // Incrémenter le compteur de succès
+          }
+        } catch (e: any) { // Attraper les erreurs réseau, etc.
+          allSucceeded = false; // Marquer l'échec
+          console.error(`Erro inesperado ao excluir dados para tipo ${id}:`, e);
+          toast.error(`Erro inesperado ao excluir dados: ${id} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
         }
       }
     }
-    toast.success('Dados de demonstração excluídos (processo concluído).'); // Message de succès global
-    checkExistingDemoData(); // Re-vérifier l'état des données de démo
+    
+    // Messages de résumé global après la boucle
+    if (allSucceeded && deletedCount > 0) {
+        toast.success(`Dados de demonstração excluídos com sucesso para ${deletedCount} tipo(s)!`);
+    } else if (!allSucceeded) {
+        toast.error('O processo de exclusão de dados de demonstração foi concluído com erros.');
+    } else { // deletedCount est 0 et allSucceeded est true (aucun type à supprimer)
+        toast.info('Nenhum dado de demonstração foi excluído.');
+    }
+    checkExistingDemoData(); // Re-vérifier l'état das dados de démo após tout
   };
 
   const hasAnyDemo = savedTeacherTypes.some((id) => demoDataStatus[id]);
