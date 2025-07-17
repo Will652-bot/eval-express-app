@@ -1,255 +1,274 @@
-import React, { useState, useEffect } from 'react';
-import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { ConfirmModal } from '../components/ui/ConfirmModal';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
-import { Database, Trash2, Plus, Info, CheckCircle, XCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+// src/pages/SettingsPage.tsx
+import React, { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { Label } from '@/components/ui/Label';
 import toast from 'react-hot-toast';
-import { UpdatePasswordForm } from '../components/auth/UpdatePasswordForm';
+import { TeacherTypeSelector } from '@/features/teacherTypeSelector/TeacherTypeSelector';
 
-export const SettingsPage: React.FC = () => {
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(false);
-    const [demoLoading, setDemoLoading] = useState(false);
-    const [hasDemoData, setHasDemoData] = useState<boolean | null>(null);
-    const [checkingDemoStatus, setCheckingDemoStatus] = useState(true);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [formData, setFormData] = useState({
-        email: user?.email || '',
+export default function SettingsPage() {
+  const { user } = useAuth();
+  const [email, setEmail] = useState(user?.email || '');
+  const [saving, setSaving] = useState(false);
+
+  const [selectedTeacherTypes, setSelectedTeacherTypes] = useState<string[]>([]);
+  const [savedTeacherTypes, setSavedTeacherTypes] = useState<string[]>([]);
+  const [demoDataStatus, setDemoDataStatus] = useState<{ [key: string]: boolean }>({});
+
+  const fetchTeacherTypes = async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('users_teachertypes')
+      .select('teachertype_id')
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error(error);
+      toast.error('Erro ao carregar tipos de professor');
+    } else {
+      const ids = data.map((item) => item.teachertype_id);
+      setSelectedTeacherTypes(ids);
+      setSavedTeacherTypes(ids);
+    }
+  };
+
+  useEffect(() => {
+    fetchTeacherTypes();
+    checkExistingDemoData();
+  }, [user?.id]); // Ajout user?.id comme dépendance pour fetchTeacherTypes et checkExistingDemoData
+
+  const handleSaveEmail = async () => {
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ email });
+    if (error) {
+      toast.error('Erro ao atualizar email');
+    } else {
+      toast.success('Email atualizado com sucesso');
+    }
+    setSaving(false);
+  };
+
+  const handleSaveTeacherTypes = async () => {
+    if (!user?.id) return;
+
+    const deleteRes = await supabase
+      .from('users_teachertypes')
+      .delete()
+      .eq('user_id', user.id);
+
+    if (deleteRes.error) {
+      toast.error('Erro ao limpar tipos antigos');
+      return;
+    }
+
+    const inserts = selectedTeacherTypes.map((id) => ({
+      user_id: user.id,
+      teachertype_id: id,
+    }));
+
+    const insertRes = await supabase.from('users_teachertypes').insert(inserts);
+
+    if (insertRes.error) {
+      toast.error('Erro ao salvar tipos de professor');
+    } else {
+      toast.success('Tipos de professor atualizados');
+      setSavedTeacherTypes([...selectedTeacherTypes]);
+      checkExistingDemoData();
+    }
+  };
+
+  const checkExistingDemoData = async () => {
+    if (!user?.id) return;
+    const { data, error } = await supabase
+      .from('demo_entities')
+      .select('teachertype_id')
+      .eq('user_id', user.id);
+
+    if (error) return;
+
+    const status: { [key: string]: boolean } = {};
+    data.forEach((e) => {
+      status[e.teachertype_id] = true;
     });
 
-    // ✅ CORRECTION FAILLE DE SÉCURITÉ : Met à jour l'email si l'utilisateur change.
-    useEffect(() => {
-        if (user) {
-            setFormData({ email: user.email || '' });
-            checkDemoDataStatus();
-        }
-    }, [user]);
+    setDemoDataStatus(status);
+  };
 
-    const checkDemoDataStatus = async () => {
-        if (!user?.id) return;
-        try {
-            setCheckingDemoStatus(true);
-            const { data, error } = await supabase.rpc('has_demo_data', { p_user_id: user.id });
-            if (error) { throw error; }
-            setHasDemoData(data);
-        } catch (error) {
-            console.error('❌ Erreur lors de la vérification du statut:', error);
-            setHasDemoData(false);
-        } finally {
-            setCheckingDemoStatus(false);
-        }
+  // generateDemoFunctionByType est nécessaire car il y a des fonctions SQL distinctes par type.
+  const generateDemoFunctionByType = (typeId: string) => {
+    const mapping: { [key: string]: string } = {
+      'faculdade': 'generate_demo_data_faculdade',
+      'concurso': 'generate_demo_data_concurso',
+      'criancas': 'generate_demo_data_criancas',
+      'fundamental': 'generate_demo_data_fundamental',
+      'medio': 'generate_demo_data_medio',
     };
+    return mapping[typeId] || null;
+  };
 
-    const refetchDemoStatus = async () => {
-        await checkDemoDataStatus();
-    };
-    
-    const handleEmailUpdate = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!formData.email.trim()) {
-            toast.error('O email é obrigatório');
-            return;
-        }
-        setLoading(true);
-        try {
-            const { error } = await supabase.auth.updateUser({ email: formData.email });
-            if (error) throw error;
-            toast.success('Email atualizado com sucesso! Por favor, verifique seu email para confirmar a alteração.');
-        } catch (error: any) {
-            toast.error(error.message || 'Erro ao atualizar email');
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    const handleCreateDemoData = async () => {
-        if (!user?.id || !user?.email) {
-            toast.error('Usuário não autenticado');
-            return;
-        }
-        setDemoLoading(true);
-        try {
-            const { data: hasData, error: checkError } = await supabase.rpc('has_demo_data', { p_user_id: user.id });
-            if (checkError) { throw checkError; }
-            if (hasData === true) {
-                toast.error('Conjunto de dados de demonstração já ativo');
-                return;
-            }
-            const { error } = await supabase.rpc('generate_demo_data', { p_user_id: user.id, p_user_email: user.email });
-            if (error) throw error;
-            toast.success('✅ Dados de demonstração criados com sucesso');
-            await refetchDemoStatus();
-            localStorage.removeItem(`demo-banner-dismissed-${user.id}`);
-        } catch (error: any) {
-            toast.error('❌ Erro ao criar dados de demonstração: ' + (error.message || 'Erro desconhecido'));
-        } finally {
-            setDemoLoading(false);
-        }
-    };
+  const getTeachertypeKey = async (id: string): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from('teachertypes')
+      .select('teachertype')
+      .eq('id', id)
+      .single();
 
-    const handleDeleteDemoData = async () => {
-        if (!user?.id || !user?.email) {
-            toast.error('Usuário não autenticado');
-            return;
-        }
-        setDemoLoading(true);
-        try {
-            const { data: hasData, error: checkError } = await supabase.rpc('has_demo_data_to_delete', { p_user_id: user.id });
-            if (checkError) { throw checkError; }
-            if (hasData === false) {
-                toast.error('Nenhum conjunto de dados de demonstração está ativo');
-                return;
-            }
-            const { error } = await supabase.rpc('delete_demo_data', { p_user_id: user.id, p_user_email: user.email });
-            if (error) {
-                if (error.message?.includes('No demo data found for this user')) {
-                    toast.error('⚠️ Nenhum dado de demonstração encontrado para exclusão.');
-                    await refetchDemoStatus();
-                } else {
-                    throw error;
-                }
+    if (error || !data) return null;
+    const label = data.teachertype.toLowerCase();
+    if (label.includes('faculdade')) return 'faculdade';
+    if (label.includes('concurso')) return 'concurso';
+    if (label.includes('infantil') || label.includes('criança')) return 'criancas';
+    if (label.includes('fundamental')) return 'fundamental';
+    if (label.includes('médio') || label.includes('medio')) return 'medio';
+    return null;
+  };
+
+  const createDemoData = async () => {
+    if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
+      toast.error('Informations de l\'utilisateur incomplètes.');
+      return;
+    }
+    let allSucceeded = true; // Drapeau pour le succès global
+    let createdCount = 0;   // Compteur des créations réussies
+
+    for (const id of savedTeacherTypes) {
+      if (!demoDataStatus[id]) { // Seulement si les données de démo n'existent pas encore pour ce type
+        const key = await getTeachertypeKey(id);
+        const fn = key && generateDemoFunctionByType(key); // Obtient le nom de la fonction SQL
+
+        if (fn) { // Si un nom de fonction valide a été trouvé
+          try {
+            const res = await supabase.rpc(fn, {
+              p_user_id: user.id,
+              p_user_email: user.email,
+              p_teachertype_id: id, // ID du type de professeur (UUID)
+            });
+            if (res.error) {
+              allSucceeded = false; // Marquer l'échec
+              console.error(`Erro ao gerar dados para ${key}:`, res.error);
+              toast.error(`Erro ao gerar dados: ${key} (${res.error.message || res.error.details || 'erro desconhecido'})`); // Message d'erreur plus détaillé
             } else {
-                toast.success('✅ Dados de demonstração excluídos com sucesso');
-                await refetchDemoStatus();
+              createdCount++; // Incrémenter le compteur de succès
             }
-        } catch (error: any) {
-            toast.error('❌ Erro ao excluir dados de demonstração: ' + (error.message || 'Erro desconhecido'));
-        } finally {
-            setDemoLoading(false);
-            setShowDeleteConfirm(false);
+          } catch (e: any) { // Attraper les erreurs réseau, etc.
+            allSucceeded = false; // Marquer l'échec
+            console.error(`Erro inesperado ao gerar dados para ${key}:`, e);
+            toast.error(`Erro inesperado ao gerar dados: ${key} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
+          }
+        } else {
+          allSucceeded = false; // Marquer l'échec si la fonction n'est pas trouvée
+          toast.error(`Erro: Função de demonstração não encontrada para o tipo ${key || id}.`); // Si le mapping a échoué
         }
-    };
+      }
+    }
 
-    const getStatusMessage = () => {
-        if (checkingDemoStatus || hasDemoData === null) {
-            return { message: '🔄 Verificando status dos dados de demonstração...', bgColor: 'bg-gray-50', borderColor: 'border-gray-200', textColor: 'text-gray-800', icon: <Info className="h-4 w-4" /> };
+    // Messages de résumé global après la boucle
+    if (allSucceeded && createdCount > 0) {
+        toast.success(`Dados de demonstração criados com sucesso para ${createdCount} tipo(s)!`);
+    } else if (!allSucceeded) {
+        toast.error('O processo de geração de dados de demonstração foi concluído com erros.');
+    } else { // createdCount est 0 et allSucceeded est true (aucun nouveau type à créer)
+        toast.info('Nenhum dado de demonstração novo foi criado.');
+    }
+    checkExistingDemoData(); // Re-vérifier l'état des dados de démo após tout
+  };
+
+  const deleteDemoData = async () => {
+    if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
+      toast.error('Informations de l\'utilisateur incomplètes pour l\'exclusion.');
+      return;
+    }
+    let allSucceeded = true; // Drapeau pour le succès global
+    let deletedCount = 0;   // Compteur des suppressions réussies
+
+    // MODIFICATION CLÉ ICI : Itérer sur selectedTeacherTypes au lieu de savedTeacherTypes
+    for (const id of selectedTeacherTypes) { 
+      if (demoDataStatus[id]) { // Seulement si les données de démo existent pour ce type
+        try {
+          const res = await supabase.rpc('delete_demo_data_by_type', {
+            p_user_id: user.id,
+            p_user_email: user.email, 
+            p_teachertype_id: id,
+          });
+          if (res.error) {
+            allSucceeded = false; // Marquer l'échec
+            console.error(`Erro ao excluir dados para tipo ${id}:`, res.error);
+            toast.error(`Erro ao excluir dados: ${id} (${res.error.message || res.error.details || 'erro desconhecido'})`); // Message d'erreur plus détaillé
+          } else {
+            deletedCount++; // Incrémenter le compteur de succès
+          }
+        } catch (e: any) { // Attraper les erreurs réseau, etc.
+          allSucceeded = false; // Marquer l'échec
+          console.error(`Erro inesperado ao excluir dados para tipo ${id}:`, e);
+          toast.error(`Erro inesperado ao excluir dados: ${id} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
         }
-        if (hasDemoData) {
-            return { message: '✅ Você possui dados de demonstração ativos em sua conta.', bgColor: 'bg-green-50', borderColor: 'border-green-200', textColor: 'text-green-800', icon: <CheckCircle className="h-4 w-4 text-green-600" /> };
-        }
-        return { message: '💡 Nenhum conjunto de dados de demonstração está ativo. Crie um conjunto para explorar a plataforma.', bgColor: 'bg-blue-50', borderColor: 'border-blue-200', textColor: 'text-blue-800', icon: <XCircle className="h-4 w-4 text-blue-600" /> };
-    };
+      }
+    }
+    
+    // Messages de résumé global après la boucle
+    if (allSucceeded && deletedCount > 0) {
+        toast.success(`Dados de demonstração excluídos com sucesso para ${deletedCount} tipo(s)!`);
+    } else if (!allSucceeded) {
+        toast.error('O processo de exclusão de dados de demonstração foi concluído com erros.');
+    } else { // deletedCount est 0 et allSucceeded est true (aucun type à supprimer)
+        toast.info('Nenhum dado de demonstração foi excluído.');
+    }
+    checkExistingDemoData(); // Re-vérifier l'état das dados de démo após tout
+  };
 
-    const statusInfo = getStatusMessage();
+  const hasAnyDemo = savedTeacherTypes.some((id) => demoDataStatus[id]);
+  const canCreateAnyDemo = savedTeacherTypes.some((id) => !demoDataStatus[id]);
 
-    const getCreateTooltip = () => {
-        if (hasDemoData) { return "Você já possui dados de demonstração ativos"; }
-        return "Criar dados de exemplo para explorar todas as funcionalidades";
-    };
-
-    const getDeleteTooltip = () => {
-        if (!hasDemoData) { return "Nenhum conjunto de dados de demonstração encontrado"; }
-        return "Remover todos os dados de demonstração da sua conta";
-    };
-
-    return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-900">Configurações da Conta</h1>
-                <p className="mt-1 text-gray-500">
-                    Gerencie suas informações de conta e preferências
-                </p>
-            </div>
-            <div className="grid grid-cols-1 gap-6">
-                <Card>
-                    <div className="p-6 space-y-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                                <Database className="h-6 w-6 text-primary-600" />
-                                <h2 className="text-xl font-semibold text-gray-900">Dados de Demonstração</h2>
-                            </div>
-                            {process.env.NODE_ENV === 'development' && (
-                                <div className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
-                                    Debug: {hasDemoData === null ? 'null' : hasDemoData.toString()}
-                                </div>
-                            )}
-                        </div>
-                        <p className="text-gray-600">
-                            Gerencie os dados de demonstração para explorar todas as funcionalidades do EvalExpress.
-                        </p>
-                        <div className={`${statusInfo.bgColor} border ${statusInfo.borderColor} rounded-md p-4`}>
-                            <div className="flex items-center space-x-2">
-                                {statusInfo.icon}
-                                <p className={`${statusInfo.textColor} text-sm font-medium`}>
-                                    {statusInfo.message}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            <div className="flex-1 relative group">
-                                <Button onClick={handleCreateDemoData} isLoading={demoLoading} leftIcon={<Plus className="h-4 w-4" />} className="w-full" disabled={hasDemoData === true || demoLoading || checkingDemoStatus} variant={hasDemoData !== true && !checkingDemoStatus ? "primary" : "outline"}>
-                                    Criar um conjunto de dados de demonstração
-                                </Button>
-                                {(hasDemoData === true || checkingDemoStatus) && (
-                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                                        <div className="flex items-center space-x-1">
-                                            <Info className="h-3 w-3" />
-                                            <span>{getCreateTooltip()}</span>
-                                        </div>
-                                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex-1 relative group">
-                                <Button onClick={() => setShowDeleteConfirm(true)} isLoading={demoLoading} variant="outline" leftIcon={<Trash2 className="h-4 w-4" />} className="w-full" disabled={hasDemoData !== true || demoLoading || checkingDemoStatus}>
-                                    Excluir o conjunto de dados de demonstração
-                                </Button>
-                                {(hasDemoData !== true || checkingDemoStatus) && (
-                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
-                                        <div className="flex items-center space-x-1">
-                                            <Info className="h-3 w-3" />
-                                            <span>{getDeleteTooltip()}</span>
-                                        </div>
-                                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="text-xs text-gray-500 bg-gray-50 rounded-md p-3">
-                            <p className="font-medium mb-1">ℹ️ Informações importantes:</p>
-                            <ul className="space-y-1 ml-4">
-                                <li>• Os dados de demonstração incluem turmas, alunos, critérios e avaliações de exemplo</li>
-                                <li>• Todas as ações são registradas para fins de auditoria</li>
-                                <li>• A exclusão remove permanentemente todos os dados de demonstração</li>
-                                <li>• Use os dados de demonstração para explorar todas as funcionalidades da plataforma</li>
-                            </ul>
-                        </div>
-                        <div className="flex justify-center">
-                            <Button variant="ghost" size="sm" onClick={refetchDemoStatus} isLoading={checkingDemoStatus} leftIcon={<RefreshCw className="h-4 w-4" />}>
-                                Atualizar Status
-                            </Button>
-                        </div>
-                    </div>
-                </Card>
-
-                <Card>
-                    <form onSubmit={handleEmailUpdate} className="space-y-6 p-6">
-                        <h2 className="text-xl font-semibold text-gray-900">Alterar Email</h2>
-                        <Input label="Novo Email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required fullWidth />
-                        <Button type="submit" isLoading={loading}>
-                            Atualizar Email
-                        </Button>
-                    </form>
-                </Card>
-
-                <Card>
-                  <UpdatePasswordForm />
-                </Card>
-            </div>
-
-            <ConfirmModal
-                isOpen={showDeleteConfirm}
-                title="Excluir Dados de Demonstração"
-                message="Tem certeza que deseja excluir todos os dados de demonstração?&#10;Esta ação não pode ser desfeita."
-                onConfirm={handleDeleteDemoData}
-                onCancel={() => setShowDeleteConfirm(false)}
-                confirmText="Confirmar"
-                cancelText="Cancelar"
-                variant="danger"
-            />
+  return (
+    <div className="space-y-8">
+      <div>
+        <Label>Email</Label>
+        <div className="flex gap-4">
+          <Input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <Button onClick={handleSaveEmail} disabled={saving}>Salvar</Button>
         </div>
-    );
-};
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold">Tipo de ensino</h2>
+        <TeacherTypeSelector
+          selectedTypes={selectedTeacherTypes}
+          setSelectedTypes={(types) => {
+            if (types.length <= 2) setSelectedTeacherTypes(types);
+          }}
+        />
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold mt-6">Dados de demonstração</h2>
+        <div className="flex gap-4 mt-2">
+          <Button
+            onClick={handleSaveTeacherTypes}
+            disabled={selectedTeacherTypes.length === 0}
+            className="bg-blue-600 text-white"
+          >
+            Tipos selecionados
+          </Button>
+          <Button
+            onClick={createDemoData}
+            disabled={!canCreateAnyDemo}
+          >
+            + Criar um conjunto de dados de demonstração
+          </Button>
+          <Button
+            onClick={deleteDemoData}
+            disabled={!hasAnyDemo}
+            variant="ghost"
+          >
+            🗑️ Excluir o conjunto de dados de demonstração
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
