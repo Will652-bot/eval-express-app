@@ -21,6 +21,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 
+// Enregistrement des composants Chart.js
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -65,7 +66,6 @@ export const StandardReport: React.FC = () => {
     lowPerformance: [],
   });
 
-  // ✅ CORRECTION: Détection correcte du plan Pro
   const isPro = user?.current_plan === 'pro' || user?.pro_subscription_active === true;
 
   // --- fetchInitialData : Charge les listes de classes, critères, titres ---
@@ -76,18 +76,18 @@ export const StandardReport: React.FC = () => {
           .from('classes')
           .select('*')
           .eq('teacher_id', user?.id)
-          .abortSignal(signal), // Utilisation du signal d'abort
+          .abortSignal(signal),
         supabase
           .from('criteria')
           .select('*')
           .eq('teacher_id', user?.id)
-          .abortSignal(signal), // Utilisation du signal d'abort
+          .abortSignal(signal),
         supabase
           .from('evaluation_titles')
           .select('id, title')
           .eq('teacher_id', user?.id)
           .order('title')
-          .abortSignal(signal) // Utilisation du signal d'abort
+          .abortSignal(signal)
       ]);
 
       if (classesRes.error) throw classesRes.error;
@@ -123,8 +123,8 @@ export const StandardReport: React.FC = () => {
 
     try {
         const [studentTotalsRes, evaluationsRes] = await Promise.all([
-            totalsQuery.abortSignal(signal), // Utilisation du signal d'abort
-            evaluationsQuery.abortSignal(signal) // Utilisation du signal d'abort
+            totalsQuery.abortSignal(signal),
+            evaluationsQuery.abortSignal(signal)
         ]);
         
         if (studentTotalsRes.error) throw studentTotalsRes.error;
@@ -133,13 +133,18 @@ export const StandardReport: React.FC = () => {
         const studentTotals = studentTotalsRes.data;
         const evaluations = evaluationsRes.data;
 
+        // --- DÉBUT DES LOGS POUR DÉBOGAGE (À SUPPRIMER APRÈS CORRECTION) ---
+        console.log("Données brutes des évaluations (fetchData):", evaluations); 
+        // --- FIN DES LOGS POUR DÉBOGAGE ---
+
         const classSummary = new Map();
         evaluations?.forEach(evaluation => {
-          // Correction: Utilisation de evaluation.score_percentage
-          const percentage = evaluation.score_percentage; 
+          // RESTAURATION : Utilisation de evaluation.percentage (car c'était le nom de colonne qui fonctionnait)
+          const percentage = evaluation.percentage; 
+          // La vérification du type est maintenue pour la robustesse générale
           if (typeof percentage !== 'number' || isNaN(percentage)) { 
               console.warn("Skipping non-numeric or NaN percentage in class summary:", evaluation);
-              return;
+              return; 
           }
 
           const className = evaluation.class_name || 'Sem Turma';
@@ -149,13 +154,16 @@ export const StandardReport: React.FC = () => {
           classData.count += 1;
         });
 
+        console.log("Résumé par classe (classSummary):", classSummary); // LOG DE DÉBOGAGE
+
         const criteriaSummary = new Map();
         evaluations?.forEach(evaluation => {
-          // Correction: Utilisation de evaluation.score_percentage
-          const percentage = evaluation.score_percentage; 
+          // RESTAURATION : Utilisation de evaluation.percentage (car c'était le nom de colonne qui fonctionnait)
+          const percentage = evaluation.percentage; 
+          // La vérification du type est maintenue pour la robustesse générale
           if (typeof percentage !== 'number' || isNaN(percentage)) { 
               console.warn("Skipping non-numeric or NaN percentage in criteria summary:", evaluation);
-              return;
+              return; 
           }
 
           const criteriaName = evaluation.criterion_name || 'Sem Nome';
@@ -164,6 +172,9 @@ export const StandardReport: React.FC = () => {
           criteriaData.sum += percentage;
           criteriaData.count += 1;
         });
+
+        console.log("Résumé par critère (criteriaSummary):", criteriaSummary); // LOG DE DÉBOGAGE
+
 
         const lowPerformers = studentTotals?.filter(s => {
           const total = s.total; 
@@ -187,9 +198,22 @@ export const StandardReport: React.FC = () => {
         });
 
         setChartScales({
-          classMax: Math.min(100, Math.ceil(Math.max(...classAverages, 0) * 1.1)), 
-          criteriaMax: Math.min(100, Math.ceil(Math.max(...criteriaAverages, 0) * 1.1)) 
+          // CONSERVE : Utilisation de Math.max(0, ...) pour gérer les tableaux vides
+          classMax: Math.min(100, Math.ceil(Math.max(0, ...classAverages) * 1.1)), 
+          criteriaMax: Math.min(100, Math.ceil(Math.max(0, ...criteriaAverages) * 1.1)) 
         });
+
+        // --- DÉBUT DES LOGS POUR DÉBOGAGE ---
+        console.log("Données finales pour Bar Chart (byClass):", {
+            labels: classLabels,
+            data: classAverages
+        }); 
+        console.log("Données finales pour Radar Chart (byCriteria):", {
+            labels: criteriaLabels,
+            data: criteriaAverages
+        }); 
+        // --- FIN DES LOGS POUR DÉBOGAGE ---
+
 
         setPerformanceData({
           byClass: {
@@ -224,48 +248,33 @@ export const StandardReport: React.FC = () => {
     }
   }, [user?.id, selectedClasses, selectedCriteria, selectedTitleIds, startDate, endDate, supabase]);
 
-  // --- useEffect principal pour le chargement initial ---
+  // --- useEffect principal pour le chargement initial et la réaction aux changements de filtres ---
   useEffect(() => {
     const abortController = new AbortController();
 
-    const initialLoad = async () => {
-        setLoading(true);
+    const loadReportData = async () => {
+        setLoading(true); 
         try {
             // Passer le signal d'abort aux fonctions de fetch
             await fetchInitialData(abortController.signal); 
             await fetchData(abortController.signal); 
         } catch (error) {
-            console.error("Erreur lors du chargement initial des rapports:", error);
-            toast.error("Erro no carregamento inicial dos relatórios.");
+            console.error("Erro inesperado durante o carregamento do relatório:", error);
+            if (error.name !== 'AbortError') {
+                toast.error("Erro no carregamento dos relatórios.");
+            }
         } finally {
-            setLoading(false);
+            // Le setLoading est déjà géré dans fetchData.
         }
     };
-    initialLoad();
+    
+    loadReportData(); 
 
-    // Fonction de nettoyage du useEffect
+    // Fonction de nettoyage du useEffect : annule la requête si le composant est démonté
     return () => {
-        abortController.abort(); // Appelle abort() directement, sans .then()
+        abortController.abort(); 
     };
-  }, [fetchInitialData, fetchData]); // Les fonctions fetch sont useCallback-ifiées
-
-  // --- useEffect pour réagir aux changements de filtres ---
-  // Cet effet est désormais déclenché par les changements dans les dépendances de fetchData.
-  // L'appel à fetchData est maintenant géré dans l'useEffect principal qui gère son propre AbortController.
-  // Ce useEffect peut être supprimé car son rôle est intégré.
-  /*
-  useEffect(() => {
-    if (selectedClasses.length > 0 || selectedCriteria.length > 0 || startDate || endDate || selectedTitleIds.length > 0) {
-      // La logique de fetch est maintenant dans le useEffect principal.
-      // Cet effet est déclenché par les changements dans les filtres, ce qui est une dépendance de fetchData.
-      // Donc, fetchData sera appelé.
-    }
-  }, [fetchData]); // Ce useEffect est redondant et peut être supprimé.
-  */
-    // Suppression du useEffect redondant qui appelait fetchData. 
-    // fetchData est déjà une dépendance du useEffect principal qui gère le chargement initial
-    // et sera appelé à chaque fois que les filtres changent.
-    // L'ajout de l'AbortController dans fetchData résout le problème de cleanup.
+  }, [fetchInitialData, fetchData]); 
 
 
   const handleSelectAll = useCallback((type: 'classes' | 'criteria' | 'titles') => {
@@ -304,11 +313,12 @@ export const StandardReport: React.FC = () => {
       pdf.save('relatorio-padrao.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error('Erro ao gerar PDF.'); // Ajout d'un toast en cas d'erreur de PDF
+      toast.error('Erro ao gerar PDF.'); 
     }
   }, [isPro]);
 
   // Options pour le Bar Chart (Desempenho por Turma)
+  // CONSERVEES : Options robustes de Chart.js
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -326,8 +336,10 @@ export const StandardReport: React.FC = () => {
                     if (label) {
                         label += ': ';
                     }
-                    if (context.parsed.y !== null) {
+                    if (typeof context.parsed.y === 'number' && !isNaN(context.parsed.y)) {
                         label += context.parsed.y.toFixed(1) + '%';
+                    } else {
+                        label += 'N/A'; 
                     }
                     return label;
                 }
@@ -344,7 +356,10 @@ export const StandardReport: React.FC = () => {
         },
         ticks: {
             callback: function(value: any) { 
-                return value + '%';
+                if (typeof value === 'number' && !isNaN(value)) {
+                    return value.toFixed(0) + '%'; 
+                }
+                return '';
             }
         }
       },
@@ -358,6 +373,7 @@ export const StandardReport: React.FC = () => {
   };
 
   // Options pour le Radar Chart (Radar de Critérios)
+  // CONSERVEES : Options robustes de Chart.js
   const radarOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -375,8 +391,10 @@ export const StandardReport: React.FC = () => {
                     if (label) {
                         label += ': ';
                     }
-                    if (context.parsed.r !== null) { 
+                    if (typeof context.parsed.r === 'number' && !isNaN(context.parsed.r)) { 
                         label += context.parsed.r.toFixed(1) + '%';
+                    } else {
+                        label += 'N/A'; 
                     }
                     return label;
                 }
@@ -394,7 +412,10 @@ export const StandardReport: React.FC = () => {
         },
         ticks: {
             callback: function(value: any) {
-                return value + '%';
+                if (typeof value === 'number' && !isNaN(value)) {
+                    return value.toFixed(0) + '%'; 
+                }
+                return '';
             }
         },
         title: {
@@ -495,7 +516,7 @@ export const StandardReport: React.FC = () => {
                   onClick={() => handleSelectAll('criteria')}
                   className="w-full"
                 >
-                  Selecionar Todas
+                  Selecionar Todos
                 </Button>
                 <div className="max-h-48 overflow-y-auto border rounded-md p-2">
                   {criteria.map((criterion) => (
@@ -539,7 +560,7 @@ export const StandardReport: React.FC = () => {
               </label>
               <input
                 type="date"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-500 focus:ring focus:ring-primary-500"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
