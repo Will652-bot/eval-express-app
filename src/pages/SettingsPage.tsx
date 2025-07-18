@@ -15,6 +15,7 @@ export default function SettingsPage() {
 
   // NOUVEAUX ÉTATS POUR LE MOT DE PASSE
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // Nouveau champ de confirmation
   const [passwordSaving, setPasswordSaving] = useState(false);
 
   const [selectedTeacherTypes, setSelectedTeacherTypes] = useState<string[]>([]);
@@ -54,10 +55,14 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
-  // NOUVELLE FONCTION POUR LE CHANGEMENT DE MOT DE PASSE
+  // FONCTION MODIFIÉE POUR LE CHANGEMENT DE MOT DE PASSE AVEC CONFIRMATION
   const handleUpdatePassword = async () => {
-    if (!newPassword) {
-      toast.error('Por favor, insira uma nova senha.');
+    if (!newPassword || !confirmPassword) {
+      toast.error('Por favor, preencha ambos os campos de senha.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem. Por favor, verifique.');
       return;
     }
     setPasswordSaving(true);
@@ -68,6 +73,7 @@ export default function SettingsPage() {
     } else {
       toast.success('Senha atualizada com sucesso!');
       setNewPassword(''); // Réinitialiser le champ après succès
+      setConfirmPassword(''); // Réinitialiser le champ de confirmation
     }
     setPasswordSaving(false);
   };
@@ -191,7 +197,7 @@ export default function SettingsPage() {
         toast.success(`Dados de demonstração criados com sucesso para ${createdCount} tipo(s)!`);
     } else if (!allSucceeded) {
         toast.error('O processo de geração de dados de demonstração foi concluído com erros.');
-    } else { // createdCount est 0 et allSucceeded est true (aucun novo tipo à créer)
+    } else { // createdCount est 0 et allSucceeded est true (aucun nouveau type à créer)
         toast.info('Nenhum dado de demonstração novo foi criado.');
     }
     checkExistingDemoData(); // Re-vérifier l'état des dados de démo après tout
@@ -292,22 +298,40 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* NOUVELLE SECTION POUR LE CHANGEMENT DE MOT DE PASSE (PLACÉE ICI SELON VOTRE DEMANDE) */}
+      {/* NOUVELLE SECTION POUR LE CHANGEMENT DE MOT DE PASSE AVEC CONFIRMATION */}
       <div className="mt-8"> {/* Ajout de marge supérieure pour la séparation */}
         <h2 className="text-xl font-bold">Alterar Senha</h2>
-        <Label htmlFor="newPassword">Nova Senha</Label>
-        <div className="flex gap-4">
+        
+        {/* Champ Nouvelle Senha */}
+        <div className="mb-4"> {/* Ajout de marge inférieure pour espacer les champs */}
+          <Label htmlFor="newPassword">Nova Senha</Label>
           <Input
             id="newPassword"
-            type="password" // Important pour masquer le mot de passe
+            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder="Digite sua nova senha"
           />
-          <Button onClick={handleUpdatePassword} disabled={passwordSaving}>
-            {passwordSaving ? 'Salvando...' : 'Salvar Nova Senha'}
-          </Button>
         </div>
+
+        {/* Champ Confirmer Nouvelle Senha */}
+        <div className="mb-4">
+          <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Confirme sua nova senha"
+          />
+        </div>
+
+        <Button 
+          onClick={handleUpdatePassword} 
+          disabled={passwordSaving || !newPassword || !confirmPassword} // Désactiver si les champs sont vides
+        >
+          {passwordSaving ? 'Salvando...' : 'Salvar Nova Senha'}
+        </Button>
       </div>
     </div>
   );
