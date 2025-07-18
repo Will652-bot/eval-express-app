@@ -13,6 +13,11 @@ export default function SettingsPage() {
   const [email, setEmail] = useState(user?.email || '');
   const [saving, setSaving] = useState(false);
 
+  // NOUVEAUX ÉTATS POUR LE MOT DE PASSE
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); // Nouveau champ de confirmation
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
   const [selectedTeacherTypes, setSelectedTeacherTypes] = useState<string[]>([]);
   const [savedTeacherTypes, setSavedTeacherTypes] = useState<string[]>([]);
   const [demoDataStatus, setDemoDataStatus] = useState<{ [key: string]: boolean }>({});
@@ -48,6 +53,29 @@ export default function SettingsPage() {
       toast.success('Email atualizado com sucesso');
     }
     setSaving(false);
+  };
+
+  // FONCTION MODIFIÉE POUR LE CHANGEMENT DE MOT DE PASSE AVEC CONFIRMATION
+  const handleUpdatePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error('Por favor, preencha ambos os campos de senha.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem. Por favor, verifique.');
+      return;
+    }
+    setPasswordSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      // Supabase peut retourner des erreurs comme "Password should be at least 6 characters"
+      toast.error(`Erro ao atualizar senha: ${error.message}`);
+    } else {
+      toast.success('Senha atualizada com sucesso!');
+      setNewPassword(''); // Réinitialiser le champ après succès
+      setConfirmPassword(''); // Réinitialiser le champ de confirmation
+    }
+    setPasswordSaving(false);
   };
 
   const handleSaveTeacherTypes = async () => {
@@ -127,7 +155,7 @@ export default function SettingsPage() {
 
   const createDemoData = async () => {
     if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
-      toast.error('Informations de l\'utilisateur incomplètes.');
+      toast.error('Informações de l\'utilisateur incomplètes.');
       return;
     }
     let allSucceeded = true; // Drapeau pour le succès global
@@ -172,12 +200,12 @@ export default function SettingsPage() {
     } else { // createdCount est 0 et allSucceeded est true (aucun nouveau type à créer)
         toast.info('Nenhum dado de demonstração novo foi criado.');
     }
-    checkExistingDemoData(); // Re-vérifier l'état des dados de démo após tout
+    checkExistingDemoData(); // Re-vérifier l'état des dados de démo après tout
   };
 
   const deleteDemoData = async () => {
     if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
-      toast.error('Informations de l\'utilisateur incomplètes pour l\'exclusion.');
+      toast.error('Informações de l\'utilisateur incomplètes pour l\'exclusion.');
       return;
     }
     let allSucceeded = true; // Drapeau pour le succès global
@@ -215,7 +243,7 @@ export default function SettingsPage() {
     } else { // deletedCount est 0 et allSucceeded est true (aucun type à supprimer)
         toast.info('Nenhum dado de demonstração foi excluído.');
     }
-    checkExistingDemoData(); // Re-vérifier l'état das dados de démo após tout
+    checkExistingDemoData(); // Re-vérifier l'état das dados de démo après tout
   };
 
   const hasAnyDemo = savedTeacherTypes.some((id) => demoDataStatus[id]);
@@ -268,6 +296,42 @@ export default function SettingsPage() {
             🗑️ Excluir o conjunto de dados de demonstração
           </Button>
         </div>
+      </div>
+
+      {/* NOUVELLE SECTION POUR LE CHANGEMENT DE MOT DE PASSE AVEC CONFIRMATION */}
+      <div className="mt-8"> {/* Ajout de marge supérieure pour la séparation */}
+        <h2 className="text-xl font-bold">Alterar Senha</h2>
+        
+        {/* Champ Nouvelle Senha */}
+        <div className="mb-4"> {/* Ajout de marge inférieure pour espacer les champs */}
+          <Label htmlFor="newPassword">Nova Senha</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Digite sua nova senha"
+          />
+        </div>
+
+        {/* Champ Confirmer Nouvelle Senha */}
+        <div className="mb-4">
+          <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Confirme sua nova senha"
+          />
+        </div>
+
+        <Button 
+          onClick={handleUpdatePassword} 
+          disabled={passwordSaving || !newPassword || !confirmPassword} // Désactiver si les champs sont vides
+        >
+          {passwordSaving ? 'Salvando...' : 'Salvar Nova Senha'}
+        </Button>
       </div>
     </div>
   );
