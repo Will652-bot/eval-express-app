@@ -13,6 +13,10 @@ export default function SettingsPage() {
   const [email, setEmail] = useState(user?.email || '');
   const [saving, setSaving] = useState(false);
 
+  // NOUVEAUX ÉTATS POUR LE MOT DE PASSE
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
   const [selectedTeacherTypes, setSelectedTeacherTypes] = useState<string[]>([]);
   const [savedTeacherTypes, setSavedTeacherTypes] = useState<string[]>([]);
   const [demoDataStatus, setDemoDataStatus] = useState<{ [key: string]: boolean }>({});
@@ -48,6 +52,24 @@ export default function SettingsPage() {
       toast.success('Email atualizado com sucesso');
     }
     setSaving(false);
+  };
+
+  // NOUVELLE FONCTION POUR LE CHANGEMENT DE MOT DE PASSE
+  const handleUpdatePassword = async () => {
+    if (!newPassword) {
+      toast.error('Por favor, insira uma nova senha.');
+      return;
+    }
+    setPasswordSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      // Supabase peut retourner des erreurs comme "Password should be at least 6 characters"
+      toast.error(`Erro ao atualizar senha: ${error.message}`);
+    } else {
+      toast.success('Senha atualizada com sucesso!');
+      setNewPassword(''); // Réinitialiser le champ après succès
+    }
+    setPasswordSaving(false);
   };
 
   const handleSaveTeacherTypes = async () => {
@@ -127,7 +149,7 @@ export default function SettingsPage() {
 
   const createDemoData = async () => {
     if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
-      toast.error('Informations de l\'utilisateur incomplètes.');
+      toast.error('Informações de l\'utilisateur incomplètes.');
       return;
     }
     let allSucceeded = true; // Drapeau pour le succès global
@@ -156,8 +178,7 @@ export default function SettingsPage() {
             allSucceeded = false; // Marquer l'échec
             console.error(`Erro inesperado ao gerar dados para ${key}:`, e);
             toast.error(`Erro inesperado ao gerar dados: ${key} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
-          }
-        } else {
+          }<br>        } else {
           allSucceeded = false; // Marquer l'échec si la fonction n'est pas trouvée
           toast.error(`Erro: Função de demonstração não encontrada para o tipo ${key || id}.`); // Si le mapping a échoué
         }
@@ -172,15 +193,14 @@ export default function SettingsPage() {
     } else { // createdCount est 0 et allSucceeded est true (aucun nouveau type à créer)
         toast.info('Nenhum dado de demonstração novo foi criado.');
     }
-    checkExistingDemoData(); // Re-vérifier l'état des dados de démo após tout
+    checkExistingDemoData(); // Re-vérifier l'état des dados de démo après tout
   };
 
   const deleteDemoData = async () => {
     if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
-      toast.error('Informations de l\'utilisateur incomplètes pour l\'exclusion.');
+      toast.error('Informações de l\'utilisateur incomplètes pour l\'exclusion.');
       return;
-    }
-    let allSucceeded = true; // Drapeau pour le succès global
+    }<br>    let allSucceeded = true; // Drapeau pour le succès global
     let deletedCount = 0;   // Compteur des suppressions réussies
 
     // MODIFICATION CLÉ ICI : Itérer sur selectedTeacherTypes au lieu de savedTeacherTypes
@@ -203,8 +223,7 @@ export default function SettingsPage() {
           allSucceeded = false; // Marquer l'échec
           console.error(`Erro inesperado ao excluir dados para tipo ${id}:`, e);
           toast.error(`Erro inesperado ao excluir dados: ${id} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
-        }
-      }
+        }<br>      }
     }
     
     // Messages de résumé global après la boucle
@@ -266,6 +285,24 @@ export default function SettingsPage() {
             variant="ghost"
           >
             🗑️ Excluir o conjunto de dados de demonstração
+          </Button>
+        </div>
+      </div>
+
+      {/* NOUVELLE SECTION POUR LE CHANGEMENT DE MOT DE PASSE (PLACÉE ICI SELON VOTRE DEMANDE) */}
+      <div className="mt-8"> {/* Ajout de marge supérieure pour la séparation */}
+        <h2 className="text-xl font-bold">Alterar Senha</h2>
+        <Label htmlFor="newPassword">Nova Senha</Label>
+        <div className="flex gap-4">
+          <Input
+            id="newPassword"
+            type="password" // Important pour masquer le mot de passe
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Digite sua nova senha"
+          />
+          <Button onClick={handleUpdatePassword} disabled={passwordSaving}>
+            {passwordSaving ? 'Salvando...' : 'Salvar Nova Senha'}
           </Button>
         </div>
       </div>
