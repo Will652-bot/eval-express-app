@@ -178,7 +178,8 @@ export default function SettingsPage() {
             allSucceeded = false; // Marquer l'échec
             console.error(`Erro inesperado ao gerar dados para ${key}:`, e);
             toast.error(`Erro inesperado ao gerar dados: ${key} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
-          }<br>        } else {
+          }
+        } else {
           allSucceeded = false; // Marquer l'échec si la fonction n'est pas trouvée
           toast.error(`Erro: Função de demonstração não encontrada para o tipo ${key || id}.`); // Si le mapping a échoué
         }
@@ -190,7 +191,7 @@ export default function SettingsPage() {
         toast.success(`Dados de demonstração criados com sucesso para ${createdCount} tipo(s)!`);
     } else if (!allSucceeded) {
         toast.error('O processo de geração de dados de demonstração foi concluído com erros.');
-    } else { // createdCount est 0 et allSucceeded est true (aucun nouveau type à créer)
+    } else { // createdCount est 0 et allSucceeded est true (aucun novo tipo à créer)
         toast.info('Nenhum dado de demonstração novo foi criado.');
     }
     checkExistingDemoData(); // Re-vérifier l'état des dados de démo après tout
@@ -200,7 +201,8 @@ export default function SettingsPage() {
     if (!user?.id || !user?.email) { // S'assurer que user.id et user.email sont disponibles
       toast.error('Informações de l\'utilisateur incomplètes pour l\'exclusion.');
       return;
-    }<br>    let allSucceeded = true; // Drapeau pour le succès global
+    }
+    let allSucceeded = true; // Drapeau pour le succès global
     let deletedCount = 0;   // Compteur des suppressions réussies
 
     // MODIFICATION CLÉ ICI : Itérer sur selectedTeacherTypes au lieu de savedTeacherTypes
@@ -223,7 +225,8 @@ export default function SettingsPage() {
           allSucceeded = false; // Marquer l'échec
           console.error(`Erro inesperado ao excluir dados para tipo ${id}:`, e);
           toast.error(`Erro inesperado ao excluir dados: ${id} (${e.message || 'erro desconhecido'})`); // Message d'erreur plus détaillé
-        }<br>      }
+        }
+      }
     }
     
     // Messages de résumé global après la boucle
@@ -234,7 +237,7 @@ export default function SettingsPage() {
     } else { // deletedCount est 0 et allSucceeded est true (aucun type à supprimer)
         toast.info('Nenhum dado de demonstração foi excluído.');
     }
-    checkExistingDemoData(); // Re-vérifier l'état das dados de démo após tout
+    checkExistingDemoData(); // Re-vérifier l'état das dados de démo après tout
   };
 
   const hasAnyDemo = savedTeacherTypes.some((id) => demoDataStatus[id]);
