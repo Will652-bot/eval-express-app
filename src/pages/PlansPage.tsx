@@ -204,7 +204,7 @@ export const PlansPage: React.FC = () => {
                   </div>
                   <div className="flex items-center text-success-700">
                     <Check className="h-5 w-5 mr-2" />
-                    <span>Anexos PDF às avaliações</span>
+                    <span>Possibilidade de anexar arquivos PDF às avaliações</span>
                   </div>
                   <div className="flex items-center text-success-700">
                     <Check className="h-5 w-5 mr-2" />
@@ -253,7 +253,7 @@ export const PlansPage: React.FC = () => {
               <ul className="mt-6 space-y-4">
                 <li className="flex items-start">
                   <Check className="h-5 w-5 text-primary-500 mt-0.5" />
-                  <span className="ml-3 text-gray-700">Até 30 alunos</span>
+                  <span className="ml-3 text-gray-700">Até 60 alunos</span> {/* MODIFIED: From 30 to 60 alunos */}
                 </li>
                 <li className="flex items-start">
                   <Check className="h-5 w-5 text-primary-500 mt-0.5" />
@@ -283,7 +283,7 @@ export const PlansPage: React.FC = () => {
                 <h3 className="text-2xl font-bold text-gray-900">Pro</h3>
               </div>
               <p className="mt-2 text-gray-500">Para quem busca mais controle, exportação e relatórios avançados.</p>
-              <p className="mt-8 text-4xl font-bold text-gray-900">R$ 4,99</p>
+              <p className="mt-8 text-4xl font-bold text-gray-900">R$ 9,99</p> {/* MODIFIED: From R$ 4,99 to R$ 9,99 */}
               <p className="text-sm text-gray-500">/mês</p>
 
               <ul className="mt-6 space-y-4">
